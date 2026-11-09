@@ -1,0 +1,93 @@
+# Sample application landscape for exercising semantic zoom.
+# Levels: system > container > component.
+
+elements:
+  - id: crm
+    kind: system
+    name: CRM
+    description: Customer relationship management
+    children:
+      - id: crm-web
+        kind: container
+        name: CRM Web
+        technology: Blazor
+        children:
+          - { id: crm-contacts-ui, kind: component, name: Contacts UI }
+          - { id: crm-deals-ui, kind: component, name: Deals UI }
+      - id: crm-api
+        kind: container
+        name: CRM API
+        technology: ASP.NET Core
+        children:
+          - { id: crm-contacts-svc, kind: component, name: Contacts Service }
+          - { id: crm-deals-svc, kind: component, name: Deals Service }
+      - { id: crm-db, kind: datastore, name: CRM DB, technology: Azure SQL }
+
+  - id: erp
+    kind: system
+    name: ERP
+    description: Finance, invoicing and inventory
+    children:
+      - id: erp-api
+        kind: container
+        name: ERP API
+        technology: Azure Functions
+        children:
+          - { id: erp-invoicing, kind: component, name: Invoicing }
+          - { id: erp-inventory, kind: component, name: Inventory }
+      - { id: erp-db, kind: datastore, name: ERP DB, technology: Azure SQL }
+
+  - id: portal
+    kind: system
+    name: Customer Portal
+    description: Self-service for customers
+    children:
+      - { id: portal-web, kind: container, name: Portal Web, technology: React }
+      - id: portal-bff
+        kind: container
+        name: Portal BFF
+        technology: Node.js
+        children:
+          - { id: portal-orders, kind: component, name: Orders Facade }
+          - { id: portal-profile, kind: component, name: Profile Facade }
+
+  - id: bus
+    kind: system
+    name: Integration Platform
+    description: Event backbone and API gateway
+    children:
+      - { id: bus-topics, kind: queue, name: Service Bus, technology: Azure Service Bus }
+      - { id: bus-gateway, kind: container, name: API Gateway, technology: Azure APIM }
+
+  - id: bi
+    kind: system
+    name: Reporting
+    description: Dashboards and analytics
+    children:
+      - { id: bi-etl, kind: container, name: ETL, technology: Data Factory }
+      - { id: bi-dw, kind: datastore, name: Data Warehouse, technology: Synapse }
+      - { id: bi-reports, kind: container, name: Reports, technology: Power BI }
+
+  - { id: idp, kind: external, name: Identity Provider, description: Entra ID }
+  - { id: payments, kind: external, name: Payment Provider }
+
+relationships:
+  - { from: portal-web, to: portal-bff, label: Calls }
+  - { from: portal-orders, to: bus-gateway, label: Order API }
+  - { from: portal-profile, to: bus-gateway, label: Profile API }
+  - { from: bus-gateway, to: crm-api, label: Routes }
+  - { from: bus-gateway, to: erp-api, label: Routes }
+  - { from: crm-web, to: crm-api, label: Calls }
+  - { from: crm-contacts-svc, to: crm-db, label: Reads/writes }
+  - { from: crm-deals-svc, to: crm-db, label: Reads/writes }
+  - { from: crm-deals-svc, to: bus-topics, label: Deal won, sync: false }
+  - { from: bus-topics, to: erp-invoicing, label: Deal won, sync: false }
+  - { from: erp-invoicing, to: erp-db, label: Writes }
+  - { from: erp-inventory, to: erp-db, label: Reads/writes }
+  - { from: erp-invoicing, to: payments, label: Charges }
+  - { from: erp-db, to: bi-etl, label: Extract, sync: false }
+  - { from: crm-db, to: bi-etl, label: Extract, sync: false }
+  - { from: bi-etl, to: bi-dw, label: Loads }
+  - { from: bi-dw, to: bi-reports, label: Feeds }
+  - { from: portal-web, to: idp, label: Signs in }
+  - { from: crm-web, to: idp, label: Signs in }

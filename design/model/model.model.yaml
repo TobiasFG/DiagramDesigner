@@ -1,0 +1,2 @@
+elements: [ { id: new-person, kind: person, name: New Person }, { id: new-system, kind: system, name: New System }, { id: new-database, kind: datastore, name: New Database }, { id: new-queue, kind: queue, name: New Queue } ]
+relationships: [ { from: new-person, to: new-system }, { from: new-system, to: new-database }, { from: new-database, to: new-queue }, { from: new-queue, to: new-system } ]

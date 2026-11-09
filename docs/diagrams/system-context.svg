@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -4 413 643" width="413" height="643" role="img" aria-labelledby="sdv-title sdv-desc" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif">
+ <title id="sdv-title">Web Shop — system context</title>
+ <desc id="sdv-desc">Component diagram with 4 nodes and 3 connections.</desc>
+ <rect x="-2" y="-4" width="413" height="643" fill="#ffffff"/>
+ <defs>
+  <marker id="sdv-m-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+   <path d="M 0 0 L 10 5 L 0 10 Z" fill="#5b6470"/>
+  </marker>
+  <marker id="sdv-m-open-arrow" viewBox="0 0 11 12" refX="10" refY="6" markerWidth="11" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+   <path d="M 1 1 L 10 6 L 1 11" fill="none" stroke="#5b6470" stroke-width="1.5"/>
+  </marker>
+  <marker id="sdv-m-triangle" viewBox="0 0 15 14" refX="14" refY="7" markerWidth="15" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+   <path d="M 1 1 L 14 7 L 1 13 Z" fill="#ffffff" stroke="#5b6470" stroke-width="1.5"/>
+  </marker>
+  <marker id="sdv-m-diamond" viewBox="0 0 18 12" refX="17" refY="6" markerWidth="18" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+   <path d="M 1 6 L 9 1 L 17 6 L 9 11 Z" fill="#ffffff" stroke="#5b6470" stroke-width="1.5"/>
+  </marker>
+  <marker id="sdv-m-diamond-filled" viewBox="0 0 18 12" refX="17" refY="6" markerWidth="18" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+   <path d="M 1 6 L 9 1 L 17 6 L 9 11 Z" fill="#5b6470" stroke="#5b6470" stroke-width="1.5"/>
+  </marker>
+ </defs>
+ <g class="sdv-groups"/>
+ <g class="sdv-edges">
+  <g data-id="customer-&gt;shop#0">
+   <path d="M 121 132 L 121 270" fill="none" stroke="#5b6470" stroke-width="1.5" marker-end="url(#sdv-m-arrow)"/>
+  </g>
+  <g data-id="shop-&gt;payments#agg">
+   <path d="M 94 393 L 94 531" fill="none" stroke="#5b6470" stroke-width="1.5" marker-end="url(#sdv-m-arrow)"/>
+  </g>
+  <g data-id="shop-&gt;warehouse#agg">
+   <path d="M 148 393 L 148 485 Q 148 491 154 491 L 309 491 Q 315 491 315 497 L 315 531" fill="none" stroke="#5b6470" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#sdv-m-arrow)"/>
+  </g>
+ </g>
+ <g class="sdv-nodes">
+  <g transform="translate(41 12)" data-id="customer">
+   <g class="sdv-node sdv-person">
+    <rect x="0" y="24" width="160" height="96" rx="16" fill="#08427b" stroke="#052e56" stroke-width="1.5"/>
+    <circle cx="80" cy="16" r="16" fill="#08427b" stroke="#052e56" stroke-width="1.5"/>
+    <text x="80" y="51" font-size="14" font-weight="700" text-anchor="middle" fill="#ffffff" class="sdv-label">Customer</text>
+    <text x="80" y="67" font-size="11" text-anchor="middle" fill="#ffffff">[Person]</text>
+    <text x="80" y="88" font-size="12" text-anchor="middle" fill="#ffffff">Buys products through</text>
+    <text x="80" y="103" font-size="12" text-anchor="middle" fill="#ffffff">the web shop</text>
+   </g>
+  </g>
+  <g transform="translate(41 270)" data-id="shop">
+   <g class="sdv-node sdv-system">
+    <rect x="0" y="0" width="160" height="123" rx="6" fill="#1168bd" stroke="#0b4884" stroke-width="1.5"/>
+    <text x="80" y="23" font-size="14" font-weight="700" text-anchor="middle" fill="#ffffff" class="sdv-label">Web Shop</text>
+    <text x="80" y="39" font-size="11" text-anchor="middle" fill="#ffffff">[Software System]</text>
+    <text x="80" y="60" font-size="12" text-anchor="middle" fill="#ffffff">Lets customers browse</text>
+    <text x="80" y="75" font-size="12" text-anchor="middle" fill="#ffffff">the catalogue and place</text>
+    <text x="80" y="90" font-size="12" text-anchor="middle" fill="#ffffff">orders</text>
+    <text x="80" y="104" font-size="11" font-style="italic" text-anchor="middle" fill="#ffffff">+4 inside</text>
+   </g>
+  </g>
+  <g transform="translate(14 531)" data-id="payments">
+   <g class="sdv-node sdv-external">
+    <rect x="0" y="0" width="160" height="92" rx="6" fill="#8a8a8a" stroke="#606060" stroke-width="1.5"/>
+    <text x="80" y="23" font-size="14" font-weight="700" text-anchor="middle" fill="#ffffff" class="sdv-label">Payment Provider</text>
+    <text x="80" y="39" font-size="11" text-anchor="middle" fill="#ffffff">[External System]</text>
+    <text x="80" y="60" font-size="12" text-anchor="middle" fill="#ffffff">Card and wallet</text>
+    <text x="80" y="75" font-size="12" text-anchor="middle" fill="#ffffff">payments</text>
+   </g>
+  </g>
+  <g transform="translate(234 531)" data-id="warehouse">
+   <g class="sdv-node sdv-external">
+    <rect x="0" y="0" width="161" height="58" rx="6" fill="#8a8a8a" stroke="#606060" stroke-width="1.5"/>
+    <text x="80.5" y="23" font-size="14" font-weight="700" text-anchor="middle" fill="#ffffff" class="sdv-label">Warehouse System</text>
+    <text x="80.5" y="39" font-size="11" text-anchor="middle" fill="#ffffff">[External System]</text>
+   </g>
+  </g>
+ </g>
+ <g class="sdv-edge-labels">
+  <rect x="81" y="192" width="80" height="18" rx="3" fill="#ffffff" opacity="0.9"/>
+  <text x="121" y="205" font-size="11" text-anchor="middle" fill="#1f2328">Places orders</text>
+  <rect x="55" y="453" width="78" height="18" rx="3" fill="#ffffff" opacity="0.9"/>
+  <text x="94" y="466" font-size="11" text-anchor="middle" fill="#1f2328">Charges card</text>
+  <rect x="179" y="482" width="47" height="18" rx="3" fill="#ffffff" opacity="0.9"/>
+  <text x="202.5" y="495" font-size="11" text-anchor="middle" fill="#1f2328">Notifies</text>
+ </g>
+</svg>

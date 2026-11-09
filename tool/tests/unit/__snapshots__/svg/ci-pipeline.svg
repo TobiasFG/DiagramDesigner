@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -4 1154 239" width="1154" height="239" role="img" aria-labelledby="sdv-title sdv-desc" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif">
+ <title id="sdv-title">CI pipeline</title>
+ <desc id="sdv-desc">Pipeline diagram with 10 nodes and 7 connections.</desc>
+ <rect x="-4" y="-4" width="1154" height="239" fill="#ffffff"/>
+ <defs>
+  <marker id="sdv-m-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+   <path d="M 0 0 L 10 5 L 0 10 Z" fill="#5b6470"/>
+  </marker>
+  <marker id="sdv-m-open-arrow" viewBox="0 0 11 12" refX="10" refY="6" markerWidth="11" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+   <path d="M 1 1 L 10 6 L 1 11" fill="none" stroke="#5b6470" stroke-width="1.5"/>
+  </marker>
+  <marker id="sdv-m-triangle" viewBox="0 0 15 14" refX="14" refY="7" markerWidth="15" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+   <path d="M 1 1 L 14 7 L 1 13 Z" fill="#ffffff" stroke="#5b6470" stroke-width="1.5"/>
+  </marker>
+  <marker id="sdv-m-diamond" viewBox="0 0 18 12" refX="17" refY="6" markerWidth="18" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+   <path d="M 1 6 L 9 1 L 17 6 L 9 11 Z" fill="#ffffff" stroke="#5b6470" stroke-width="1.5"/>
+  </marker>
+  <marker id="sdv-m-diamond-filled" viewBox="0 0 18 12" refX="17" refY="6" markerWidth="18" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+   <path d="M 1 6 L 9 1 L 17 6 L 9 11 Z" fill="#5b6470" stroke="#5b6470" stroke-width="1.5"/>
+  </marker>
+ </defs>
+ <g class="sdv-groups">
+  <g transform="translate(187 63)" data-id="build">
+   <g class="sdv-node sdv-stage">
+    <rect x="0" y="0" width="180" height="156" rx="8" fill="rgba(130, 80, 223, 0.05)" stroke="#a78bdb" stroke-width="1.5"/>
+    <text x="12" y="23" font-size="13" font-weight="700" fill="#4a2a8a" class="sdv-label">build</text>
+   </g>
+  </g>
+  <g transform="translate(597 93)" data-id="test">
+   <g class="sdv-node sdv-stage">
+    <rect x="0" y="0" width="292" height="116" rx="8" fill="rgba(130, 80, 223, 0.05)" stroke="#a78bdb" stroke-width="1.5"/>
+    <text x="12" y="23" font-size="13" font-weight="700" fill="#4a2a8a" class="sdv-label">test</text>
+   </g>
+  </g>
+  <g transform="translate(954 12)" data-id="deploy">
+   <g class="sdv-node sdv-stage">
+    <rect x="0" y="0" width="180" height="100" rx="8" fill="rgba(130, 80, 223, 0.05)" stroke="#a78bdb" stroke-width="1.5"/>
+    <text x="12" y="23" font-size="13" font-weight="700" fill="#4a2a8a" class="sdv-label">deploy</text>
+   </g>
+  </g>
+ </g>
+ <g class="sdv-edges">
+  <g data-id="trigger-&gt;build#0">
+   <path d="M 127 103 L 187 103" fill="none" stroke="#5b6470" stroke-width="1.5" marker-end="url(#sdv-m-arrow)"/>
+  </g>
+  <g data-id="build-&gt;test#0">
+   <path d="M 367 193 L 597 193" fill="none" stroke="#5b6470" stroke-width="1.5" marker-end="url(#sdv-m-arrow)"/>
+  </g>
+  <g data-id="unit-&gt;e2e#0">
+   <path d="M 733 153 L 753 153" fill="none" stroke="#5b6470" stroke-width="1.5" marker-end="url(#sdv-m-arrow)"/>
+  </g>
+  <g data-id="test-&gt;deploy#0">
+   <path d="M 889 133 L 903 133 Q 909 133 909 127 L 909 88 Q 909 82 915 82 L 954 82" fill="none" stroke="#5b6470" stroke-width="1.5" marker-end="url(#sdv-m-arrow)"/>
+  </g>
+  <g data-id="compile-&gt;bundle#0">
+   <path d="M 323 183 L 386 183 Q 392 183 392 177 L 392 86 Q 392 80 398 80 L 432 80" fill="none" stroke="#5b6470" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#sdv-m-arrow)"/>
+  </g>
+  <g data-id="bundle-&gt;e2e#0">
+   <path d="M 532 88 L 546 88 Q 552 88 552 94 L 552 177 Q 552 183 558 183 L 737 183 Q 743 183 743 177 L 743 171 Q 743 166 748 166 L 753 166" fill="none" stroke="#5b6470" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#sdv-m-arrow)"/>
+  </g>
+  <g data-id="bundle-&gt;release#0">
+   <path d="M 532 72 L 970 72" fill="none" stroke="#5b6470" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#sdv-m-arrow)"/>
+  </g>
+ </g>
+ <g class="sdv-nodes">
+  <g transform="translate(12 85)" data-id="trigger">
+   <g class="sdv-node sdv-flow-start">
+    <rect x="0" y="0" width="115" height="36" rx="18" fill="#2da44e" stroke="none"/>
+    <text x="57.5" y="22" font-size="13" font-weight="700" text-anchor="middle" fill="#ffffff" class="sdv-label">push to main</text>
+   </g>
+  </g>
+  <g transform="translate(203 163)" data-id="compile">
+   <g class="sdv-node sdv-job">
+    <rect x="0" y="0" width="120" height="40" rx="6" fill="#ffffff" stroke="#8c959f" stroke-width="1.5"/>
+    <text x="60" y="23" font-size="12" text-anchor="middle" fill="#1f2328" class="sdv-label">compile</text>
+   </g>
+  </g>
+  <g transform="translate(203 103)" data-id="lint">
+   <g class="sdv-node sdv-job">
+    <rect x="0" y="0" width="120" height="40" rx="6" fill="#ffffff" stroke="#8c959f" stroke-width="1.5"/>
+    <text x="60" y="23" font-size="12" text-anchor="middle" fill="#1f2328" class="sdv-label">lint</text>
+   </g>
+  </g>
+  <g transform="translate(613 133)" data-id="unit">
+   <g class="sdv-node sdv-job">
+    <rect x="0" y="0" width="120" height="40" rx="6" fill="#ffffff" stroke="#8c959f" stroke-width="1.5"/>
+    <text x="60" y="23" font-size="12" text-anchor="middle" fill="#1f2328" class="sdv-label">unit</text>
+   </g>
+  </g>
+  <g transform="translate(753 140)" data-id="e2e">
+   <g class="sdv-node sdv-job">
+    <rect x="0" y="0" width="120" height="40" rx="6" fill="#ffffff" stroke="#8c959f" stroke-width="1.5"/>
+    <text x="60" y="23" font-size="12" text-anchor="middle" fill="#1f2328" class="sdv-label">e2e</text>
+   </g>
+  </g>
+  <g transform="translate(970 52)" data-id="release">
+   <g class="sdv-node sdv-job">
+    <rect x="0" y="0" width="126" height="40" rx="6" fill="#ffffff" stroke="#8c959f" stroke-width="2"/>
+    <rect x="0" y="0" width="6" height="40" rx="3" fill="#8c959f"/>
+    <text x="66" y="23" font-size="12" text-anchor="middle" fill="#1f2328" class="sdv-label">Release to prod</text>
+   </g>
+  </g>
+  <g transform="translate(432 57)" data-id="bundle">
+   <g class="sdv-node sdv-artifact">
+    <path d="M 0 0 H 90 L 100 10 V 46 H 0 Z" fill="#fff8e6" stroke="#b08800" stroke-width="1.5"/>
+    <path d="M 90 0 V 10 H 100" fill="none" stroke="#b08800" stroke-width="1.5"/>
+    <text x="50" y="26" font-size="12" text-anchor="middle" fill="#1f2328" class="sdv-label">bundle</text>
+   </g>
+  </g>
+ </g>
+ <g class="sdv-edge-labels"/>
+</svg>

@@ -1,0 +1,27 @@
+---
+title: "Order Service — components"
+---
+flowchart TD
+  storefront["Storefront<br/>[Container: SvelteKit]"]
+  subgraph order_service["Order Service<br/>[Container: TypeScript / Node]"]
+    order_api["Order API<br/>[Component: REST controller]"]
+    order_domain["Order Domain<br/>[Component]"]
+    order_repo["Order Repository<br/>[Component]"]
+  end
+  order_db[("Order DB<br/>[Database: PostgreSQL 17]")]
+  payments["Payment Provider<br/>[External System]"]
+  storefront -->|"Submits orders<br/>[HTTPS/JSON]"| order_api
+  order_api -->|"Invokes"| order_domain
+  order_domain -->|"Persists through"| order_repo
+  order_repo -->|"Reads and writes<br/>[SQL]"| order_db
+  order_service -->|"Charges card<br/>[HTTPS/JSON]"| payments
+  classDef boundary fill:none,stroke:#8aa4bf,stroke-dasharray:6 4,color:#34506b
+  class order_service boundary
+  classDef component fill:#85bbf0,stroke:#5d82a8,color:#0b2540
+  class order_api,order_domain,order_repo component
+  classDef container fill:#438dd5,stroke:#2e6295,color:#ffffff
+  class storefront container
+  classDef datastore fill:#438dd5,stroke:#2e6295,color:#ffffff
+  class order_db datastore
+  classDef external fill:#8a8a8a,stroke:#606060,color:#ffffff
+  class payments external

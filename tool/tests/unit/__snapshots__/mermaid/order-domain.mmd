@@ -1,0 +1,42 @@
+---
+title: "Order domain"
+---
+classDiagram
+  direction BT
+  class aggregate_root["AggregateRoot"] {
+    <<abstract>>
+    #version: int
+    #raise(event: DomainEvent) void
+  }
+  class order["Order"] {
+    <<entity>>
+    -id: UUID
+    +total: Money
+    +status: OrderStatus
+    +addLine(line: OrderLine) void
+    +place() void
+  }
+  class order_line["OrderLine"] {
+    <<value object>>
+    +sku: string
+    +quantity: int
+    +price: Money
+  }
+  class order_status["OrderStatus"] {
+    <<enumeration>>
+    draft
+    placed
+    paid
+    shipped
+    cancelled
+  }
+  class payment_gateway["PaymentGateway"] {
+    <<interface>>
+    +charge(order: Order) Receipt
+  }
+  class stripe_gateway["StripeGateway"]
+  order "1" *-- "1..*" order_line : lines
+  aggregate_root <|-- order
+  order -- order_status
+  stripe_gateway ..|> payment_gateway
+  stripe_gateway ..> order : reads

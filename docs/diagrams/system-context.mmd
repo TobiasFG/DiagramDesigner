@@ -1,0 +1,17 @@
+---
+title: "Web Shop — system context"
+---
+flowchart TD
+  customer(["Customer<br/>[Person]"])
+  shop["Web Shop<br/>[Software System]"]
+  payments["Payment Provider<br/>[External System]"]
+  warehouse["Warehouse System<br/>[External System]"]
+  customer -->|"Places orders"| shop
+  shop -->|"Charges card"| payments
+  shop -.->|"Notifies"| warehouse
+  classDef external fill:#8a8a8a,stroke:#606060,color:#ffffff
+  class payments,warehouse external
+  classDef person fill:#08427b,stroke:#052e56,color:#ffffff
+  class customer person
+  classDef system fill:#1168bd,stroke:#0b4884,color:#ffffff
+  class shop system

@@ -1,0 +1,28 @@
+---
+title: "CI pipeline"
+---
+flowchart LR
+  trigger(["push to main"])
+  subgraph build["build"]
+    compile["compile"]
+    lint["lint"]
+  end
+  subgraph test["test"]
+    unit["unit"]
+    e2e["e2e"]
+  end
+  subgraph deploy["deploy"]
+    release["Release to prod"]
+  end
+  bundle>"bundle"]
+  trigger --> build
+  build --> test
+  unit --> e2e
+  test --> deploy
+  compile -.-> bundle
+  bundle -.-> e2e
+  bundle -.-> release
+  classDef flow_start fill:#2da44e,stroke:none,color:#ffffff
+  class trigger flow_start
+  classDef status_pending stroke:#8c959f,stroke-width:2px
+  class release status_pending

@@ -1,0 +1,5 @@
+interactions:
+  - id: place-order
+    name: Place order
+    participants: [ customer ]
+    steps: []

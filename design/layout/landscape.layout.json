@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "view": "landscape",
+  "nodes": {
+    "crm": { "x": 890, "y": 220, "pinned": true }
+  },
+  "edges": {}
+}

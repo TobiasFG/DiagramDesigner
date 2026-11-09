@@ -1,0 +1,14 @@
+{
+	"name": "system-design",
+	"private": true,
+	"description": "Design model plus the System Design Viewer (in tool/).",
+	"scripts": {
+		"postinstall": "npm --prefix tool install",
+		"dev": "npm --prefix tool run dev",
+		"dev:example": "SDV_ROOT=../examples/three-systems npm --prefix tool run dev",
+		"sdv": "node tool/cli/bin.js",
+		"validate": "node tool/cli/bin.js validate",
+		"export": "node tool/cli/bin.js export",
+		"test": "npm --prefix tool test"
+	}
+}

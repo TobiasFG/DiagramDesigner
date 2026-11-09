@@ -1,0 +1,122 @@
+/* App chrome. Diagram colours live in theme tokens (src/lib/theme/tokens.ts). */
+:root,
+[data-theme='light'] {
+	--ui-bg: #f6f8fa;
+	--ui-panel: #ffffff;
+	--ui-border: #d0d7de;
+	--ui-text: #1f2328;
+	--ui-muted: #59636e;
+	--ui-accent: #0969da;
+	--ui-accent-bg: #ddf4ff;
+	--ui-hover: #eaeef2;
+	--ui-danger: #cf222e;
+	--ui-warn: #9a6700;
+	--ui-ok: #1a7f37;
+	--ui-shadow: 0 8px 24px rgba(140, 149, 159, 0.25);
+}
+[data-theme='dark'] {
+	--ui-bg: #010409;
+	--ui-panel: #0d1117;
+	--ui-border: #30363d;
+	--ui-text: #e6edf3;
+	--ui-muted: #9198a1;
+	--ui-accent: #4493f8;
+	--ui-accent-bg: #121d2f;
+	--ui-hover: #161b22;
+	--ui-danger: #f85149;
+	--ui-warn: #d29922;
+	--ui-ok: #3fb950;
+	--ui-shadow: 0 8px 24px rgba(1, 4, 9, 0.8);
+}
+* {
+	box-sizing: border-box;
+}
+html,
+body {
+	margin: 0;
+	height: 100%;
+	background: var(--ui-bg);
+	color: var(--ui-text);
+	font-family:
+		system-ui,
+		-apple-system,
+		'Segoe UI',
+		Roboto,
+		'Helvetica Neue',
+		Helvetica,
+		Arial,
+		sans-serif;
+	font-size: 14px;
+}
+a {
+	color: var(--ui-accent);
+}
+button,
+input,
+select,
+textarea {
+	font: inherit;
+	color: inherit;
+}
+button {
+	background: var(--ui-panel);
+	border: 1px solid var(--ui-border);
+	border-radius: 6px;
+	padding: 4px 10px;
+	cursor: pointer;
+	line-height: 20px;
+}
+button:hover:not(:disabled) {
+	background: var(--ui-hover);
+}
+button:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+button.primary {
+	background: var(--ui-accent);
+	border-color: var(--ui-accent);
+	color: #fff;
+}
+button.danger {
+	color: var(--ui-danger);
+}
+button.icon {
+	padding: 4px 7px;
+	min-width: 30px;
+}
+button[aria-pressed='true'],
+button[aria-selected='true'] {
+	background: var(--ui-accent-bg);
+	border-color: var(--ui-accent);
+}
+input,
+select,
+textarea {
+	background: var(--ui-panel);
+	border: 1px solid var(--ui-border);
+	border-radius: 6px;
+	padding: 4px 8px;
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+	outline: 2px solid var(--ui-accent);
+	outline-offset: -1px;
+}
+code,
+.mono {
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 12px;
+}
+.muted {
+	color: var(--ui-muted);
+}
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+}

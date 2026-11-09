@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-16 -16 693 553" width="693" height="553" role="img" aria-labelledby="sdv-title sdv-desc" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif">
+ <title id="sdv-title">Place order</title>
+ <desc id="sdv-desc">Sequence diagram with 4 participants and 7 messages.</desc>
+ <rect x="-16" y="-16" width="693" height="553" fill="#ffffff"/>
+ <defs>
+  <marker id="sdv-m-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+   <path d="M 0 0 L 10 5 L 0 10 Z" fill="#5b6470"/>
+  </marker>
+  <marker id="sdv-m-open-arrow" viewBox="0 0 11 12" refX="10" refY="6" markerWidth="11" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+   <path d="M 1 1 L 10 6 L 1 11" fill="none" stroke="#5b6470" stroke-width="1.5"/>
+  </marker>
+  <marker id="sdv-m-triangle" viewBox="0 0 15 14" refX="14" refY="7" markerWidth="15" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+   <path d="M 1 1 L 14 7 L 1 13 Z" fill="#ffffff" stroke="#5b6470" stroke-width="1.5"/>
+  </marker>
+  <marker id="sdv-m-diamond" viewBox="0 0 18 12" refX="17" refY="6" markerWidth="18" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+   <path d="M 1 6 L 9 1 L 17 6 L 9 11 Z" fill="#ffffff" stroke="#5b6470" stroke-width="1.5"/>
+  </marker>
+  <marker id="sdv-m-diamond-filled" viewBox="0 0 18 12" refX="17" refY="6" markerWidth="18" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+   <path d="M 1 6 L 9 1 L 17 6 L 9 11 Z" fill="#5b6470" stroke="#5b6470" stroke-width="1.5"/>
+  </marker>
+ </defs>
+ <g class="sdv-seq-body">
+  <g class="sdv-seq-fragment">
+   <rect x="26" y="254" width="613" height="192" fill="none" stroke="#8c959f" stroke-width="1.2"/>
+   <path d="M 26 254 H 56 V 266 L 50 272 H 26 Z" fill="#eaeef2" stroke="#8c959f" stroke-width="1.2"/>
+   <text x="32" y="267" font-size="11" font-weight="700" fill="#1f2328">alt</text>
+   <text x="64" y="267" font-size="11" fill="#59636e">[charge succeeded]</text>
+   <line x1="26" y1="364" x2="639" y2="364" stroke="#8c959f" stroke-width="1" stroke-dasharray="5 4"/>
+   <text x="34" y="380" font-size="11" fill="#59636e">[charge failed]</text>
+  </g>
+  <line x1="86" y1="52" x2="86" y2="505" stroke="#8c959f" stroke-width="1" stroke-dasharray="4 4" class="sdv-lifeline"/>
+  <line x1="238" y1="52" x2="238" y2="505" stroke="#8c959f" stroke-width="1" stroke-dasharray="4 4" class="sdv-lifeline"/>
+  <line x1="414" y1="52" x2="414" y2="505" stroke="#8c959f" stroke-width="1" stroke-dasharray="4 4" class="sdv-lifeline"/>
+  <line x1="579" y1="52" x2="579" y2="505" stroke="#8c959f" stroke-width="1" stroke-dasharray="4 4" class="sdv-lifeline"/>
+  <rect x="409" y="192" width="10" height="40" fill="#dcecfb" stroke="#4d7aa6" stroke-width="1"/>
+  <path d="M 86 94 H 238" fill="none" stroke="#5b6470" stroke-width="1.5" marker-end="url(#sdv-m-arrow)"/>
+  <text x="162" y="88" font-size="12" text-anchor="middle" fill="#1f2328">POST /orders</text>
+  <path d="M 238 134 H 274 V 156 H 240" fill="none" stroke="#5b6470" stroke-width="1.5" marker-end="url(#sdv-m-arrow)"/>
+  <text x="280" y="138" font-size="12" fill="#1f2328">validate()</text>
+  <path d="M 238 192 H 409" fill="none" stroke="#5b6470" stroke-width="1.5" marker-end="url(#sdv-m-arrow)"/>
+  <text x="323.5" y="186" font-size="12" text-anchor="middle" fill="#1f2328">charge()</text>
+  <path d="M 409 232 H 238" fill="none" stroke="#5b6470" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#sdv-m-open-arrow)"/>
+  <text x="323.5" y="226" font-size="12" text-anchor="middle" fill="#1f2328">ok</text>
+  <path d="M 238 302 H 579" fill="none" stroke="#5b6470" stroke-width="1.5" marker-end="url(#sdv-m-arrow)"/>
+  <text x="408.5" y="296" font-size="12" text-anchor="middle" fill="#1f2328">INSERT order</text>
+  <path d="M 238 342 H 86" fill="none" stroke="#5b6470" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#sdv-m-open-arrow)"/>
+  <text x="162" y="336" font-size="12" text-anchor="middle" fill="#1f2328">201 Created</text>
+  <path d="M 238 412 H 86" fill="none" stroke="#5b6470" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#sdv-m-open-arrow)"/>
+  <text x="162" y="406" font-size="12" text-anchor="middle" fill="#1f2328">402</text>
+  <g class="sdv-seq-note">
+   <path d="M 198 458 H 611 L 619 466 V 485 H 198 Z" fill="#fff8c5" stroke="#d4a72c" stroke-width="1.2"/>
+   <text x="408.5" y="476" font-size="12" text-anchor="middle" fill="#3b2300">Stored in one transaction</text>
+  </g>
+ </g>
+ <g class="sdv-seq-headers">
+  <g class="sdv-seq-header">
+   <rect x="29.5" y="16" width="113" height="36" rx="4" fill="#eef4ff" stroke="#4d7aa6" stroke-width="1.5"/>
+   <g>
+    <circle cx="50.5" cy="31" r="3.5" fill="none" stroke="#4d7aa6" stroke-width="1.3"/>
+    <path d="M 44.5 41 Q 50.5 32 56.5 41" fill="none" stroke="#4d7aa6" stroke-width="1.3"/>
+   </g>
+   <text x="63.5" y="39" font-size="13" font-weight="700" fill="#1f2328">Customer</text>
+  </g>
+  <g class="sdv-seq-header">
+   <rect x="168.5" y="16" width="139" height="36" rx="4" fill="#eef4ff" stroke="#4d7aa6" stroke-width="1.5"/>
+   <rect x="183.5" y="29" width="12" height="10" rx="2" fill="none" stroke="#4d7aa6" stroke-width="1.3"/>
+   <text x="202.5" y="39" font-size="13" font-weight="700" fill="#1f2328">Order Service</text>
+  </g>
+  <g class="sdv-seq-header">
+   <rect x="331" y="16" width="166" height="36" rx="4" fill="#eef4ff" stroke="#4d7aa6" stroke-width="1.5"/>
+   <rect x="346" y="28" width="12" height="12" rx="2" fill="none" stroke="#4d7aa6" stroke-width="1.3" stroke-dasharray="2 2"/>
+   <text x="365" y="39" font-size="13" font-weight="700" fill="#1f2328">Payment Provider</text>
+  </g>
+  <g class="sdv-seq-header">
+   <rect x="524" y="16" width="110" height="36" rx="4" fill="#eef4ff" stroke="#4d7aa6" stroke-width="1.5"/>
+   <g>
+    <ellipse cx="545" cy="30" rx="6" ry="2.5" fill="none" stroke="#4d7aa6" stroke-width="1.3"/>
+    <path d="M 539 30 V 39 A 6 2.5 0 0 0 551 39 V 30" fill="none" stroke="#4d7aa6" stroke-width="1.3"/>
+   </g>
+   <text x="558" y="39" font-size="13" font-weight="700" fill="#1f2328">Order DB</text>
+  </g>
+ </g>
+</svg>

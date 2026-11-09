@@ -1,0 +1,35 @@
+# File header comment
+
+# Section comment before elements
+elements: # trailing comment on section key
+  # comment before first item
+  - id: shop # trailing on id
+    kind: system
+    name: "Web Shop" # double-quoted name
+    description: 'single quoted'
+
+    # comment before children after a blank line
+    children:
+      - id: api
+        kind: container
+        technology: Node # tech comment
+      # comment between items
+      - id: db
+        kind: datastore
+  # comment before second top-level item
+  - id: customer
+    kind: person
+
+relationships:
+  - { from: customer, to: shop, label: Uses } # flow map with comment
+  - from: api
+    to: db
+    label: Reads # label comment
+    sync: false
+
+classes:
+  - id: order
+    attributes:
+      - { name: id, type: UUID, visibility: "-" }
+      - { name: total, type: Money } # total comment
+# Trailing document comment

@@ -1,0 +1,32 @@
+---
+title: "Web Shop — containers"
+---
+flowchart LR
+  customer(["Customer<br/>[Person]"])
+  subgraph shop["Web Shop<br/>[Software System]"]
+    storefront["Storefront<br/>[Container: SvelteKit]"]
+    order_service["Order Service<br/>[Container: TypeScript / Node]"]
+    order_db[("Order DB<br/>[Database: PostgreSQL 17]")]
+    order_events>"Order Events<br/>[Queue: Kafka topic]"]
+  end
+  payments["Payment Provider<br/>[External System]"]
+  warehouse["Warehouse System<br/>[External System]"]
+  customer -->|"Places orders"| shop
+  customer -->|"Browses and orders<br/>[HTTPS]"| storefront
+  order_service -->|"Charges card<br/>[HTTPS/JSON]"| payments
+  order_service -.->|"Publishes OrderPlaced"| order_events
+  order_events -.->|"Notifies"| warehouse
+  storefront -->|"Submits orders"| order_service
+  order_service -->|"Reads and writes"| order_db
+  classDef boundary fill:none,stroke:#8aa4bf,stroke-dasharray:6 4,color:#34506b
+  class shop boundary
+  classDef container fill:#438dd5,stroke:#2e6295,color:#ffffff
+  class storefront,order_service container
+  classDef datastore fill:#438dd5,stroke:#2e6295,color:#ffffff
+  class order_db datastore
+  classDef external fill:#8a8a8a,stroke:#606060,color:#ffffff
+  class payments,warehouse external
+  classDef person fill:#08427b,stroke:#052e56,color:#ffffff
+  class customer person
+  classDef queue fill:#438dd5,stroke:#2e6295,color:#ffffff
+  class order_events queue

@@ -1,0 +1,33 @@
+# Web shop — system context and containers.
+# Elements nest: system > container > component.
+
+elements:
+  - id: customer
+    kind: person
+    name: Customer
+    description: Buys products through the web shop
+
+  - id: shop
+    kind: system
+    name: Web Shop
+    description: Lets customers browse the catalogue and place orders
+    children:
+      
+      - id: order-events
+        kind: queue
+        name: Order Events
+        technology: Kafka topic
+
+  - id: warehouse
+    kind: external
+    name: Warehouse System
+    tags: [partner]
+
+relationships:
+  - from: customer
+    to: shop
+    label: Places orders
+  - from: order-events
+    to: warehouse
+    label: Notifies
+    sync: false

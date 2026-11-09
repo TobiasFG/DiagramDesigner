@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "view": "order-components",
+  "nodes": {
+    "new-database": { "x": 240, "y": -30, "pinned": true },
+    "new-queue": { "x": 460, "y": -10, "pinned": true },
+    "new-system": { "x": 240, "y": 150, "pinned": true }
+  },
+  "edges": {}
+}

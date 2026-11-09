@@ -1,0 +1,21 @@
+---
+title: "Place order"
+---
+sequenceDiagram
+  actor customer as Customer
+  participant order_service as Order Service
+  participant payments as Payment Provider
+  participant order_db as Order DB
+  customer->>order_service: POST /orders
+  order_service->>order_service: validate()
+  order_service->>payments: charge()
+  activate payments
+  payments-->>order_service: ok
+  deactivate payments
+  alt charge succeeded
+    order_service->>order_db: INSERT order
+    order_service-->>customer: 201 Created
+  else charge failed
+    order_service-->>customer: 402
+  end
+  Note over order_service,order_db: Stored in one transaction
