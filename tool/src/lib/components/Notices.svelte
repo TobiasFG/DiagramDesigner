@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { design } from '$lib/client/store.svelte';
+	import { design } from '#lib/client/store.svelte.ts';
 </script>
 
 <div class="notices" aria-live="polite">

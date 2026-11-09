@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { design } from '$lib/client/store.svelte';
-	import { formatLocation, sortDiagnostics } from '$lib/model/diagnostics';
+	import { design } from '#lib/client/store.svelte.ts';
+	import { formatLocation, sortDiagnostics } from '#lib/model/diagnostics.ts';
 
 	let { onclose }: { onclose: () => void } = $props();
 	let filter = $state<'all' | 'error' | 'warning'>('all');

@@ -2,12 +2,12 @@
 	import '../app.css';
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
-	import { design } from '$lib/client/store.svelte';
-	import { theme } from '$lib/client/theme.svelte';
-	import { themeCss } from '$lib/theme/tokens';
-	import Notices from '$lib/components/Notices.svelte';
-	import DiagnosticsPanel from '$lib/components/DiagnosticsPanel.svelte';
-	import type { ChangedEvent } from '$lib/server/vite-plugin';
+	import { design } from '#lib/client/store.svelte.ts';
+	import { theme } from '#lib/client/theme.svelte.ts';
+	import { themeCss } from '#lib/theme/tokens.ts';
+	import Notices from '#lib/components/Notices.svelte';
+	import DiagnosticsPanel from '#lib/components/DiagnosticsPanel.svelte';
+	import type { ChangedEvent } from '#lib/server/vite-plugin.ts';
 
 	let { children } = $props();
 	let showDiagnostics = $state(false);

@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
-import { building } from '$app/environment';
-import { serverConfig } from '$lib/server/context';
-import { enqueueWrite, type WriteRequest } from '$lib/server/write';
+import { building } from '$app/env';
+import { serverConfig } from '#lib/server/context.ts';
+import { enqueueWrite, type WriteRequest } from '#lib/server/write.ts';
 import type { RequestHandler } from './$types';
 
 export const prerender = false;

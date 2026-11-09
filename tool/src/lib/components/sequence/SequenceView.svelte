@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { design } from '$lib/client/store.svelte';
-	import type { ViewState } from '$lib/client/view-state.svelte';
-	import { deleteMany } from '$lib/commands/delete';
-	import { setColumnWidth } from '$lib/commands/layout';
-	import { patchEntity, renameEntity } from '$lib/commands/model';
+	import { design } from '#lib/client/store.svelte.ts';
+	import type { ViewState } from '#lib/client/view-state.svelte.ts';
+	import { deleteMany } from '#lib/commands/delete.ts';
+	import { setColumnWidth } from '#lib/commands/layout.ts';
+	import { patchEntity, renameEntity } from '#lib/commands/model.ts';
 	import {
 		addParticipant,
 		insertStep,
@@ -12,15 +12,15 @@
 		moveStep,
 		removeParticipant,
 		wrapSteps
-	} from '$lib/commands/sequence';
-	import type { DataPath } from '$lib/model/diagnostics';
-	import { GROUP_KINDS, MESSAGE_KINDS, type Step } from '$lib/model/schema';
-	import type { EntityRef, SeqMessage, SequenceGraph } from '$lib/projections/types';
-	import { toSvgString } from '$lib/render/svg';
-	import { markerDefs } from '$lib/render/shapes';
-	import { drawHeader, drawSequenceBody } from '$lib/sequence/draw';
-	import { layoutSequence, SEQ, type SeqSlot } from '$lib/sequence/layout';
-	import { cssVarResolver } from '$lib/theme/tokens';
+	} from '#lib/commands/sequence.ts';
+	import type { DataPath } from '#lib/model/diagnostics.ts';
+	import { GROUP_KINDS, MESSAGE_KINDS, type Step } from '#lib/model/schema.ts';
+	import type { EntityRef, SeqMessage, SequenceGraph } from '#lib/projections/types.ts';
+	import { toSvgString } from '#lib/render/svg.ts';
+	import { markerDefs } from '#lib/render/shapes.ts';
+	import { drawHeader, drawSequenceBody } from '#lib/sequence/draw.ts';
+	import { layoutSequence, SEQ, type SeqSlot } from '#lib/sequence/layout.ts';
+	import { cssVarResolver } from '#lib/theme/tokens.ts';
 
 	let { view, projection }: { view: ViewState; projection: SequenceGraph } = $props();
 

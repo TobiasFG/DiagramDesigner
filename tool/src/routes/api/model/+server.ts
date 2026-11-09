@@ -1,8 +1,8 @@
 import { json } from '@sveltejs/kit';
-import { building } from '$app/environment';
-import { clientConfig } from '$lib/config';
-import { serverConfig } from '$lib/server/context';
-import { readDesign } from '$lib/server/files';
+import { building } from '$app/env';
+import { clientConfig } from '#lib/config.ts';
+import { serverConfig } from '#lib/server/context.ts';
+import { readDesign } from '#lib/server/files.ts';
 import type { RequestHandler } from './$types';
 
 // The static build snapshots the design into a read-only JSON file.

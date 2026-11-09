@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { SvelteFlowProvider } from '@xyflow/svelte';
-	import { design } from '$lib/client/store.svelte';
-	import { ViewState } from '$lib/client/view-state.svelte';
-	import { resetLayout } from '$lib/commands/layout';
-	import { layoutFileFor } from '$lib/model/model';
-	import { project } from '$lib/projections';
+	import { design } from '#lib/client/store.svelte.ts';
+	import { ViewState } from '#lib/client/view-state.svelte.ts';
+	import { resetLayout } from '#lib/commands/layout.ts';
+	import { layoutFileFor } from '#lib/model/model.ts';
+	import { project } from '#lib/projections/index.ts';
 	import FlowCanvas from './canvas/FlowCanvas.svelte';
 	import SequenceView from './sequence/SequenceView.svelte';
 	import Palette from './Palette.svelte';

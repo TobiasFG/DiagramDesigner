@@ -10,14 +10,14 @@
 		type Node
 	} from '@xyflow/svelte';
 	import '@xyflow/svelte/dist/style.css';
-	import { design } from '$lib/client/store.svelte';
-	import { theme } from '$lib/client/theme.svelte';
-	import type { ViewState } from '$lib/client/view-state.svelte';
-	import { contextFor, type ContextEdge } from '$lib/landscape/context';
-	import { browserElk } from '$lib/layout/elk-browser';
-	import { layoutGraph } from '$lib/layout/layout';
-	import type { Box, PositionedGraph } from '$lib/layout/types';
-	import type { RenderGraph } from '$lib/projections/types';
+	import { design } from '#lib/client/store.svelte.ts';
+	import { theme } from '#lib/client/theme.svelte.ts';
+	import type { ViewState } from '#lib/client/view-state.svelte.ts';
+	import { contextFor, type ContextEdge } from '#lib/landscape/context.ts';
+	import { browserElk } from '#lib/layout/elk-browser.ts';
+	import { layoutGraph } from '#lib/layout/layout.ts';
+	import type { Box, PositionedGraph } from '#lib/layout/types.ts';
+	import type { RenderGraph } from '#lib/projections/types.ts';
 	import LandscapeNode, { type LandscapeNodeData } from './LandscapeNode.svelte';
 
 	/** The whole model, fully expanded. It is laid out once; zooming only changes opacity. */

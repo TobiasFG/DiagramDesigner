@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { parse as parseYaml, stringify } from 'yaml';
-	import { design } from '$lib/client/store.svelte';
-	import type { ViewState } from '$lib/client/view-state.svelte';
-	import { cleanValue, readAt } from '$lib/commands/core';
-	import { unpinNode } from '$lib/commands/layout';
-	import { setEntity } from '$lib/commands/model';
-	import { ENTITY_SCHEMAS } from '$lib/model/schema';
-	import { formatPath } from '$lib/model/diagnostics';
-	import { zodIssues, issueMessage } from '$lib/model/validate-file';
-	import type { EntityRef, Projection } from '$lib/projections/types';
+	import { design } from '#lib/client/store.svelte.ts';
+	import type { ViewState } from '#lib/client/view-state.svelte.ts';
+	import { cleanValue, readAt } from '#lib/commands/core.ts';
+	import { unpinNode } from '#lib/commands/layout.ts';
+	import { setEntity } from '#lib/commands/model.ts';
+	import { ENTITY_SCHEMAS } from '#lib/model/schema.ts';
+	import { formatPath } from '#lib/model/diagnostics.ts';
+	import { zodIssues, issueMessage } from '#lib/model/validate-file.ts';
+	import type { EntityRef, Projection } from '#lib/projections/types.ts';
 	import SchemaField from './SchemaField.svelte';
 	import { entitySchema } from './schema-form';
 

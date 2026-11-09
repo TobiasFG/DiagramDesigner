@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { design } from '$lib/client/store.svelte';
-	import { VIEW_TYPES, type ViewType } from '$lib/model/schema';
+	import { design } from '#lib/client/store.svelte.ts';
+	import { VIEW_TYPES, type ViewType } from '#lib/model/schema.ts';
 
 	const LABELS: Record<ViewType, string> = {
 		component: 'Component / system',

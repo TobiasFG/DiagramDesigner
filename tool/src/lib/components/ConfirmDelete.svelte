@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { design } from '$lib/client/store.svelte';
-	import type { ViewState } from '$lib/client/view-state.svelte';
+	import { design } from '#lib/client/store.svelte.ts';
+	import type { ViewState } from '#lib/client/view-state.svelte.ts';
 
 	let { view }: { view: ViewState } = $props();
 	let dialog: HTMLDialogElement | undefined = $state();

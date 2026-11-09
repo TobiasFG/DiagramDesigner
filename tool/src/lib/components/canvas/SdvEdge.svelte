@@ -6,13 +6,13 @@
 		type EdgeProps,
 		type InternalNode
 	} from '@xyflow/svelte';
-	import { getCanvasContext } from '$lib/client/canvas-context';
-	import type { Box, Point, PositionedEdge } from '$lib/layout/types';
-	import type { RenderNode } from '$lib/projections/types';
-	import { drawEdgeLabels, edgeGeometry, edgeStrokeDash } from '$lib/render/edges';
-	import { markerId, nodeOutline } from '$lib/render/shapes';
-	import { el, toSvgString } from '$lib/render/svg';
-	import { cssVarResolver } from '$lib/theme/tokens';
+	import { getCanvasContext } from '#lib/client/canvas-context.ts';
+	import type { Box, Point, PositionedEdge } from '#lib/layout/types.ts';
+	import type { RenderNode } from '#lib/projections/types.ts';
+	import { drawEdgeLabels, edgeGeometry, edgeStrokeDash } from '#lib/render/edges.ts';
+	import { markerId, nodeOutline } from '#lib/render/shapes.ts';
+	import { el, toSvgString } from '#lib/render/svg.ts';
+	import { cssVarResolver } from '#lib/theme/tokens.ts';
 
 	let { id, source, target, data, selected }: EdgeProps = $props();
 	const ctx = getCanvasContext();

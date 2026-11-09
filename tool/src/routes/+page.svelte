@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { SvelteFlowProvider } from '@xyflow/svelte';
-	import { design } from '$lib/client/store.svelte';
-	import { ViewState } from '$lib/client/view-state.svelte';
-	import LandscapeCanvas from '$lib/components/canvas/LandscapeCanvas.svelte';
-	import PropertiesPanel from '$lib/components/panel/PropertiesPanel.svelte';
-	import { projectLandscape } from '$lib/projections';
+	import { design } from '#lib/client/store.svelte.ts';
+	import { ViewState } from '#lib/client/view-state.svelte.ts';
+	import LandscapeCanvas from '#lib/components/canvas/LandscapeCanvas.svelte';
+	import PropertiesPanel from '#lib/components/panel/PropertiesPanel.svelte';
+	import { projectLandscape } from '#lib/projections/index.ts';
 
 	const view = new ViewState();
 	// Everything open: the layout is computed once for the full tree and zoom only fades.

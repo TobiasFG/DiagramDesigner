@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/svelte';
-	import { getCanvasContext } from '$lib/client/canvas-context';
-	import type { MemberList } from '$lib/commands/model';
-	import type { RenderNode } from '$lib/projections/types';
-	import { CLASS_ROW_HEIGHT, classMetrics, drawNode } from '$lib/render/shapes';
-	import { toSvgString } from '$lib/render/svg';
-	import { cssVarResolver } from '$lib/theme/tokens';
+	import { getCanvasContext } from '#lib/client/canvas-context.ts';
+	import type { MemberList } from '#lib/commands/model.ts';
+	import type { RenderNode } from '#lib/projections/types.ts';
+	import { CLASS_ROW_HEIGHT, classMetrics, drawNode } from '#lib/render/shapes.ts';
+	import { toSvgString } from '#lib/render/svg.ts';
+	import { cssVarResolver } from '#lib/theme/tokens.ts';
 
 	let { id, data, selected, width, height }: NodeProps = $props();
 	const ctx = getCanvasContext();

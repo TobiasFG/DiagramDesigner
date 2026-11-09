@@ -1,3 +1,4 @@
+import adapter from '@sveltejs/adapter-static';
 import { defineConfig } from 'vitest/config';
 import { sveltekit } from '@sveltejs/kit/vite';
 import type { Plugin } from 'vite';
@@ -21,7 +22,18 @@ function sdvPlugin(): Plugin {
 }
 
 export default defineConfig({
-	plugins: [sveltekit(), sdvPlugin()],
+	plugins: [
+		sveltekit({
+			compilerOptions: {
+				// Force runes mode for the project, except for libraries.
+				runes: ({ filename }) =>
+					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
+			},
+			// The static build is a read-only viewer: every page falls back to the SPA shell.
+			adapter: adapter({ fallback: 'index.html', strict: false })
+		}),
+		sdvPlugin()
+	],
 	server: { host: 'localhost' },
 	preview: { host: 'localhost' },
 	worker: { format: 'es' },

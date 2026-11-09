@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import ViewEditor from '$lib/components/ViewEditor.svelte';
+	import ViewEditor from '#lib/components/ViewEditor.svelte';
 </script>
 
 <!-- Fresh editor state (selection, canvas) per view. -->

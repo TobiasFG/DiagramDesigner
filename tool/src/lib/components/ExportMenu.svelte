@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { design } from '$lib/client/store.svelte';
-	import { theme } from '$lib/client/theme.svelte';
-	import type { ViewState } from '$lib/client/view-state.svelte';
+	import { design } from '#lib/client/store.svelte.ts';
+	import { theme } from '#lib/client/theme.svelte.ts';
+	import type { ViewState } from '#lib/client/view-state.svelte.ts';
 	import {
 		exportBaseName,
 		renderedToMermaid,
 		renderedToSvg,
 		type Rendered
-	} from '$lib/export/render';
-	import type { Projection } from '$lib/projections/types';
+	} from '#lib/export/render.ts';
+	import type { Projection } from '#lib/projections/types.ts';
 
 	let { view, projection }: { view: ViewState; projection: Projection } = $props();
 

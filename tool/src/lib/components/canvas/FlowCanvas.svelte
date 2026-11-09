@@ -20,12 +20,12 @@
 		setCanvasContext,
 		type CanvasContext,
 		type InlineEdit
-	} from '$lib/client/canvas-context';
-	import { design } from '$lib/client/store.svelte';
-	import { theme } from '$lib/client/theme.svelte';
-	import type { PaletteItem, ViewState } from '$lib/client/view-state.svelte';
-	import { batch, type Command } from '$lib/commands/core';
-	import { deleteMany, type NodeTarget } from '$lib/commands/delete';
+	} from '#lib/client/canvas-context.ts';
+	import { design } from '#lib/client/store.svelte.ts';
+	import { theme } from '#lib/client/theme.svelte.ts';
+	import type { PaletteItem, ViewState } from '#lib/client/view-state.svelte.ts';
+	import { batch, type Command } from '#lib/commands/core.ts';
+	import { deleteMany, type NodeTarget } from '#lib/commands/delete.ts';
 	import {
 		alignMoves,
 		distributeMoves,
@@ -35,7 +35,7 @@
 		setEdgePoints,
 		unpinNode,
 		type AlignBox
-	} from '$lib/commands/layout';
+	} from '#lib/commands/layout.ts';
 	import {
 		addClass,
 		addClassRelation,
@@ -61,17 +61,17 @@
 		setFlowNodeActor,
 		setSlot,
 		updateMember
-	} from '$lib/commands/model';
-	import { browserElk } from '$lib/layout/elk-browser';
-	import { layoutGraph } from '$lib/layout/layout';
-	import type { Point } from '$lib/layout/types';
-	import { NO_LANE } from '$lib/projections/flow';
-	import { TRIGGER_NODE } from '$lib/projections/pipeline';
-	import type { ClassNode, RenderGraph, RenderNode } from '$lib/projections/types';
-	import { RELATION_TYPES, type ClassRelation, type Element } from '$lib/model/schema';
-	import { markerDefs } from '$lib/render/shapes';
-	import { toSvgString } from '$lib/render/svg';
-	import { cssVarResolver } from '$lib/theme/tokens';
+	} from '#lib/commands/model.ts';
+	import { browserElk } from '#lib/layout/elk-browser.ts';
+	import { layoutGraph } from '#lib/layout/layout.ts';
+	import type { Point } from '#lib/layout/types.ts';
+	import { NO_LANE } from '#lib/projections/flow.ts';
+	import { TRIGGER_NODE } from '#lib/projections/pipeline.ts';
+	import type { ClassNode, RenderGraph, RenderNode } from '#lib/projections/types.ts';
+	import { RELATION_TYPES, type ClassRelation, type Element } from '#lib/model/schema.ts';
+	import { markerDefs } from '#lib/render/shapes.ts';
+	import { toSvgString } from '#lib/render/svg.ts';
+	import { cssVarResolver } from '#lib/theme/tokens.ts';
 	import SdvEdge from './SdvEdge.svelte';
 	import ShapeNode from './ShapeNode.svelte';
 

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { design } from '$lib/client/store.svelte';
-	import type { PaletteItem, ViewState } from '$lib/client/view-state.svelte';
-	import { ELEMENT_KINDS, FLOW_NODE_TYPES, type ViewType } from '$lib/model/schema';
+	import { design } from '#lib/client/store.svelte.ts';
+	import type { PaletteItem, ViewState } from '#lib/client/view-state.svelte.ts';
+	import { ELEMENT_KINDS, FLOW_NODE_TYPES, type ViewType } from '#lib/model/schema.ts';
 
 	let { view, viewType }: { view: ViewState; viewType: Exclude<ViewType, 'sequence'> } = $props();
 
