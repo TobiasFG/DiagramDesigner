@@ -1,36 +1,9 @@
 import { expect, test } from '@playwright/test';
-import {
-	idle,
-	lineDiff,
-	openView,
-	readFixture,
-	readWork,
-	resetDesign,
-	workExists
-} from './helpers';
+import { idle, lineDiff, openView, readFixture, readWork, resetDesign } from './helpers';
 
 test.beforeEach(async ({ page }) => {
 	resetDesign();
 	await page.waitForTimeout(150);
-});
-
-test('palette adds an element to the default file, the view include list and the layout', async ({
-	page
-}) => {
-	await openView(page, 'system-context');
-	await page.getByTestId('palette-container').click();
-	await expect.poll(() => workExists('model/model.model.yaml')).toBe(true);
-	await idle(page);
-	expect(readWork('model/model.model.yaml')).toBe(
-		'elements:\n  - id: new-container\n    kind: container\n    name: New Container\n'
-	);
-	expect(readWork('views/views.view.yaml')).toContain(
-		'include: [customer, shop, payments, warehouse, new-container]'
-	);
-	expect(
-		JSON.parse(readWork('layout/system-context.layout.json')).nodes['new-container'].pinned
-	).toBe(true);
-	await expect(page.locator('[data-testid="node-new-container"]')).toBeVisible();
 });
 
 test('collapsing a group stores it in the layout file and expanding restores it', async ({

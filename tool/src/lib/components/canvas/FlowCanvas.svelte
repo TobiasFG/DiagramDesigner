@@ -23,7 +23,7 @@
 	} from '#lib/client/canvas-context.ts';
 	import { design } from '#lib/client/store.svelte.ts';
 	import { theme } from '#lib/client/theme.svelte.ts';
-	import type { PaletteItem, ViewState } from '#lib/client/view-state.svelte.ts';
+	import type { ViewState } from '#lib/client/view-state.svelte.ts';
 	import { batch, type Command } from '#lib/commands/core.ts';
 	import { deleteMany, type NodeTarget } from '#lib/commands/delete.ts';
 	import {
@@ -37,17 +37,11 @@
 		type AlignBox
 	} from '#lib/commands/layout.ts';
 	import {
-		addClass,
 		addClassRelation,
-		addElement,
-		addFlowNode,
-		addJob,
 		addMember,
 		addNeeds,
-		addObject,
 		addObjectLink,
 		addRelationship,
-		addStage,
 		addTransition,
 		moveJob,
 		parseAttribute,
@@ -67,8 +61,8 @@
 	import type { Point } from '#lib/layout/types.ts';
 	import { NO_LANE } from '#lib/projections/flow.ts';
 	import { TRIGGER_NODE } from '#lib/projections/pipeline.ts';
-	import type { ClassNode, RenderGraph, RenderNode } from '#lib/projections/types.ts';
-	import { RELATION_TYPES, type ClassRelation, type Element } from '#lib/model/schema.ts';
+	import type { RenderGraph, RenderNode } from '#lib/projections/types.ts';
+	import { RELATION_TYPES, type ClassRelation } from '#lib/model/schema.ts';
 	import { markerDefs } from '#lib/render/shapes.ts';
 	import { toSvgString } from '#lib/render/svg.ts';
 	import { cssVarResolver } from '#lib/theme/tokens.ts';
@@ -274,64 +268,6 @@
 		relationPicker = null;
 	}
 
-	// ---------------------------------------------------------------- palette
-	function addFromPalette(item: PaletteItem, pos: { x: number; y: number }) {
-		const parent = groupAt(pos.x, pos.y);
-		const pb = parent ? absBox(parent) : undefined;
-		const rel = pb ? { x: pos.x - pb.x, y: pos.y - pb.y } : pos;
-		const pn = parent ? nodeData(parent) : undefined;
-		switch (item.action) {
-			case 'element':
-				return exec(
-					addElement({
-						kind: item.kind as Element['kind'],
-						parentId: pn?.type === 'boundary' ? parent : undefined,
-						viewId,
-						position: pn?.type === 'boundary' ? rel : pos
-					})
-				);
-			case 'class':
-				return exec(
-					addClass({ kind: item.kind as ClassNode['data']['classKind'], viewId, position: pos })
-				);
-			case 'object':
-				return exec(addObject(item.kind!, viewId, pos));
-			case 'flowNode': {
-				const lane = pn?.type === 'lane' ? pn.id : undefined;
-				return exec(
-					addFlowNode(source, item.kind as never, {
-						viewId,
-						position: lane ? rel : pos,
-						actor: lane && lane !== NO_LANE ? lane.slice(5) : undefined
-					})
-				);
-			}
-			case 'stage':
-				return exec(addStage(source, { viewId, position: pos }));
-			case 'job': {
-				const stage =
-					pn?.type === 'stage'
-						? pn.id
-						: (nodes.find(
-								(n) =>
-									(n.data.node as RenderNode).type === 'stage' && view.selectedNodes.includes(n.id)
-							)?.id ?? nodes.find((n) => (n.data.node as RenderNode).type === 'stage')?.id);
-				if (!stage) return design.notify('error', 'Add a stage first');
-				return exec(
-					addJob(source, stage, { viewId, position: pn?.type === 'stage' ? rel : undefined })
-				);
-			}
-		}
-	}
-
-	function ondrop(e: DragEvent) {
-		const raw = e.dataTransfer?.getData('application/x-sdv');
-		if (!raw || readOnly) return;
-		e.preventDefault();
-		const p = flow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
-		addFromPalette(JSON.parse(raw), p);
-	}
-
 	// ---------------------------------------------------------------- selection actions
 	/** Pipeline needs/artifact edges are fields of their endpoints; the rest are list items. */
 	function selectionDeletes(): { command: Command; count: number; names: string[] } | undefined {
@@ -420,14 +356,6 @@
 				flow.fitView({ nodes: [{ id }], duration: 300, maxZoom: 1.3, padding: 0.5 });
 			},
 			align,
-			addAtCenter(item) {
-				const el = document.querySelector('.svelte-flow');
-				const r = el?.getBoundingClientRect();
-				const p = r
-					? flow.screenToFlowPosition({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
-					: { x: 0, y: 0 };
-				addFromPalette(item, p);
-			},
 			requestDelete,
 			removeFromView: removeSelectionFromView
 		};
@@ -540,8 +468,6 @@
 <div
 	class="canvas"
 	{onkeydown}
-	ondragover={(e) => e.dataTransfer?.types.includes('application/x-sdv') && e.preventDefault()}
-	{ondrop}
 	onpointermove={(e) => (lastPointer = { x: e.clientX, y: e.clientY })}
 	data-testid="canvas"
 >

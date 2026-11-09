@@ -8,7 +8,6 @@
 	import { project } from '#lib/projections/index.ts';
 	import FlowCanvas from './canvas/FlowCanvas.svelte';
 	import SequenceView from './sequence/SequenceView.svelte';
-	import Palette from './Palette.svelte';
 	import PropertiesPanel from './panel/PropertiesPanel.svelte';
 	import ConfirmDelete from './ConfirmDelete.svelte';
 	import ExportMenu from './ExportMenu.svelte';
@@ -160,7 +159,6 @@
 		{/if}
 		<div class="workspace">
 			{#if projection.kind === 'graph'}
-				{#if !design.readOnly}<Palette {view} viewType={projection.viewType} />{/if}
 				<SvelteFlowProvider>
 					<FlowCanvas {view} {projection} />
 				</SvelteFlowProvider>

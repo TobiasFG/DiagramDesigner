@@ -9,22 +9,13 @@ export interface PendingDelete {
 	files: string[];
 }
 
-/** Functions the active canvas exposes to the toolbar, palette and search. */
+/** Functions the active canvas exposes to the toolbar and search. */
 export interface CanvasApi {
 	fit(): void;
 	focus(id: string): void;
 	align(how: Alignment | 'horizontal' | 'vertical'): void;
-	/** Adds a palette item at the centre of the visible area. */
-	addAtCenter(item: PaletteItem): void;
 	requestDelete(): void;
 	removeFromView(): void;
-}
-
-export interface PaletteItem {
-	action: string;
-	/** Element kind, class kind, flow node type, ... */
-	kind?: string;
-	label: string;
 }
 
 /** Per-page UI state shared by the canvas, panels and toolbar. */

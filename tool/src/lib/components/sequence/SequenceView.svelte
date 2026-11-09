@@ -6,7 +6,6 @@
 	import { setColumnWidth } from '#lib/commands/layout.ts';
 	import { patchEntity, renameEntity } from '#lib/commands/model.ts';
 	import {
-		addParticipant,
 		insertStep,
 		moveParticipant,
 		moveStep,
@@ -249,12 +248,6 @@
 	});
 
 	let groupKind = $state<(typeof GROUP_KINDS)[number]>('opt');
-	let newParticipant = $state('');
-	const candidates = $derived(
-		[...design.model.elements.values()].filter(
-			(el) => !projection.participants.some((p) => p.id === el.id)
-		)
-	);
 
 	function requestDelete() {
 		if (readOnly) return;
@@ -276,21 +269,6 @@
 			command: cmd,
 			files: design.preview(cmd).files
 		};
-	}
-
-	function addNote() {
-		const over =
-			view.selectedParticipant ?? selectedMessage?.item.from ?? projection.participants[0]?.id;
-		if (!over) return;
-		const slot = range
-			? { list: range.list, index: range.end }
-			: { list: ['steps'], index: Infinity };
-		design.execute(
-			insertStep(projection.interactionId, slot.list, slot.index === Infinity ? 1e9 : slot.index, {
-				note: 'Note',
-				over
-			})
-		);
 	}
 
 	function onkeydown(e: KeyboardEvent) {
@@ -325,7 +303,6 @@
 					scroller.scrollTo({ left: c.x * zoom - scroller.clientWidth / 2, behavior: 'smooth' });
 			},
 			align: () => {},
-			addAtCenter: () => {},
 			requestDelete,
 			removeFromView: () => {}
 		};
@@ -343,28 +320,6 @@
 		<button class="icon" onclick={() => (zoom = Math.min(2, zoom + 0.1))} aria-label="Zoom in"
 			>+</button
 		>
-		<span class="sep"></span>
-		<form
-			onsubmit={(e) => {
-				e.preventDefault();
-				if (newParticipant.trim())
-					design.execute(addParticipant(projection.interactionId, newParticipant.trim()));
-				newParticipant = '';
-			}}
-		>
-			<input
-				bind:value={newParticipant}
-				list="seq-candidates"
-				placeholder="Add participant"
-				aria-label="Add participant"
-				disabled={readOnly}
-				data-testid="add-participant"
-			/>
-			<datalist id="seq-candidates">
-				{#each candidates as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
-			</datalist>
-		</form>
-		<button onclick={addNote} disabled={readOnly}>+ Note</button>
 		<span class="sep"></span>
 		{#if selectedMessage}
 			<select
