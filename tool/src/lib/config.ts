@@ -11,12 +11,6 @@ export interface SdvConfig {
 	/** Default export formats when a view does not list its own. */
 	formats?: ExportFormat[];
 	theme?: ThemeName;
-	/** Design-relative file receiving new top-level model entities. */
-	defaultModelFile?: string;
-	/** Design-relative file receiving new views. */
-	defaultViewFile?: string;
-	/** Grid size in px for snap-to-grid; 0 disables snapping by default. */
-	snapGrid?: number;
 }
 
 export interface ResolvedConfig {
@@ -28,26 +22,13 @@ export interface ResolvedConfig {
 	exportDir: string;
 	formats: ExportFormat[];
 	theme: ThemeName;
-	defaultModelFile: string;
-	defaultViewFile: string;
-	snapGrid: number;
 }
 
 /** Settings the browser needs; paths stay on the server. */
 export interface ClientConfig {
 	theme: ThemeName;
-	snapGrid: number;
-	defaultModelFile: string;
-	defaultViewFile: string;
-	formats: ExportFormat[];
 }
 
 export function clientConfig(c: ResolvedConfig): ClientConfig {
-	return {
-		theme: c.theme,
-		snapGrid: c.snapGrid,
-		defaultModelFile: c.defaultModelFile,
-		defaultViewFile: c.defaultViewFile,
-		formats: c.formats
-	};
+	return { theme: c.theme };
 }

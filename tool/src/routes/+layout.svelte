@@ -5,7 +5,6 @@
 	import { design } from '#lib/client/store.svelte.ts';
 	import { theme } from '#lib/client/theme.svelte.ts';
 	import { themeCss } from '#lib/theme/tokens.ts';
-	import Notices from '#lib/components/Notices.svelte';
 	import DiagnosticsPanel from '#lib/components/DiagnosticsPanel.svelte';
 	import type { ChangedEvent } from '#lib/server/vite-plugin.ts';
 
@@ -33,7 +32,6 @@
 	<header class="topbar">
 		<a class="brand" href={resolve('/')}>System Design Viewer</a>
 		<span class="spacer"></span>
-		{#if design.readOnly}<span class="badge">read-only</span>{/if}
 		<button
 			class="diag"
 			class:has-errors={errors > 0}
@@ -66,7 +64,6 @@
 	{#if showDiagnostics}
 		<DiagnosticsPanel onclose={() => (showDiagnostics = false)} />
 	{/if}
-	<Notices />
 </div>
 
 <style>
@@ -91,13 +88,6 @@
 	}
 	.spacer {
 		flex: 1;
-	}
-	.badge {
-		font-size: 12px;
-		padding: 2px 8px;
-		border-radius: 10px;
-		background: var(--ui-hover);
-		color: var(--ui-muted);
 	}
 	.diag {
 		display: flex;

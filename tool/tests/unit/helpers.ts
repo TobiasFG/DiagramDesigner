@@ -2,7 +2,6 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadDesign, type LoadedDesign, type SourceFile } from '../../src/lib/model/loader';
-import type { CommandContext, DesignData } from '../../src/lib/commands/core';
 
 export const FIXTURE_ROOT = fileURLToPath(new URL('../../../design', import.meta.url));
 
@@ -27,16 +26,4 @@ export function loadFixture(): LoadedDesign {
 
 export function loadStrings(files: Record<string, string>): LoadedDesign {
 	return loadDesign(Object.entries(files).map(([p, text]) => ({ path: p, text })));
-}
-
-export function ctxFor(data: DesignData, model: LoadedDesign['model']): CommandContext {
-	return {
-		model,
-		config: {
-			defaultModelFile: 'model/model.model.yaml',
-			defaultViewFile: 'views/views.view.yaml',
-			snapGrid: 10
-		},
-		notices: []
-	};
 }

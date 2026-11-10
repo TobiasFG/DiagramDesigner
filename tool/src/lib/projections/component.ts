@@ -11,33 +11,19 @@ import type { RenderEdge, RenderGraph, RenderNode } from './types';
  * boundary groups. Relationships of hidden elements are lifted to their nearest visible
  * ancestor and merged into aggregated edges.
  */
-export function projectComponent(
-	model: Model,
-	view: ViewInfo,
-	layout?: LayoutFile,
-	expanded?: ReadonlySet<string>
-): RenderGraph {
+export function projectComponent(model: Model, view: ViewInfo, layout?: LayoutFile): RenderGraph {
 	const def = view.def;
 	const scope = def.scope ? model.elements.get(def.scope) : undefined;
 	const defaults = scope ? [scope.id, ...descendantsOf(model, scope.id)] : model.elements.keys();
 	const visible = select(model.elements, def.include, def.exclude, defaults).ids;
 
-	if (expanded) {
-		// Semantic zoom: an element shows only when every ancestor is expanded.
-		for (const id of [...visible]) {
-			for (let p = model.elements.get(id)!.parentId; p; p = model.elements.get(p)!.parentId)
-				if (!expanded.has(p)) {
-					visible.delete(id);
-					break;
-				}
-		}
-	} else if (def.depth !== undefined) {
+	if (def.depth !== undefined) {
 		const limit = (scope?.depth ?? 0) + def.depth;
 		for (const id of [...visible]) if (model.elements.get(id)!.depth > limit) visible.delete(id);
 	}
 	if (scope && [...visible].some((id) => id !== scope.id && isAncestor(model, scope.id, id)))
 		visible.add(scope.id);
-	for (const [id, entry] of Object.entries(expanded ? {} : (layout?.nodes ?? {}))) {
+	for (const [id, entry] of Object.entries(layout?.nodes ?? {})) {
 		if (entry.collapsed && visible.has(id))
 			for (const d of descendantsOf(model, id)) visible.delete(d);
 	}

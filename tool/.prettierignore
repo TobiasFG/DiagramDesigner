@@ -10,10 +10,6 @@ bun.lockb
 
 # Generated and scratch
 tests/unit/__snapshots__/
-tests/e2e/.work/
-tests/e2e/__screenshots__/
-test-results/
-playwright-report/
 coverage/
 schema/
 tests/fixtures/

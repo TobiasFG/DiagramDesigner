@@ -1,4 +1,4 @@
-# CI for the viewer itself: lint, types, unit tests with coverage, end-to-end and visual tests.
+# CI for the viewer itself: lint, types and unit tests with coverage.
 name: Tool
 
 on:
@@ -26,17 +26,3 @@ jobs:
       - run: npm run check
       - name: Unit tests (coverage gate 80% lines for model, projections, export)
         run: npm run test:coverage
-      - run: npx playwright install --with-deps chromium
-      - name: End-to-end and visual tests
-        # Pixel baselines are per platform; missing Linux baselines are written on the first
-        # run (commit them from the uploaded artifact), existing ones are enforced.
-        run: npx playwright test --update-snapshots=missing
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: playwright
-          path: |
-            tool/playwright-report
-            tool/test-results
-            tool/tests/e2e/__screenshots__/linux
-          if-no-files-found: ignore

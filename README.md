@@ -49,20 +49,19 @@ Technical / deployment architecture
 - **Not yet:** attaching flow, sequence and class/ER diagrams to elements and connections;
   linking connections to data models; saving which boxes are open.
 - **Still the earlier prototype:** the six separate diagram types (component, class, object,
-  flow, pipeline, sequence) remain available as individual views at `/views`. Which of them
+  flow, pipeline, sequence) remain available through `npm run export` only. Which of them
   survive, and how, is undecided.
 
 ## How it works
 
-The YAML files under `design/` are the source of truth. The canvas and a text editor are
-two equal ways of changing them, and every canvas edit is written back to the files with
-comments and formatting intact.
+The YAML files under `design/` are the source of truth. The canvas is read-only; edit the
+files in a text editor and the canvas updates as you save.
 
 ```
-design/            model, views and layout — edit by hand or on the canvas
+design/            model, views and layout
 docs/diagrams/     generated exports (Mermaid, SVG, PNG)
 tool/              the SvelteKit app and the `sdv` CLI
-sdv.config.ts      paths, export formats, theme, snap grid
+sdv.config.ts      paths, export formats, theme
 ```
 
 The schema in `tool/src/lib/model/schema.ts` is the reference for the model format, and
@@ -81,5 +80,5 @@ npm run export       # regenerate docs/diagrams
 npm test
 ```
 
-PNG export and the end-to-end tests need Chromium once:
+PNG export needs Chromium once:
 `npx --prefix tool playwright install chromium`.

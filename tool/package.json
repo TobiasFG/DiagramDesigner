@@ -19,15 +19,12 @@
 		"format": "prettier --write .",
 		"sdv": "node cli/bin.js",
 		"schema": "node cli/bin.js schema",
-		"test:unit": "vitest run",
-		"test:coverage": "vitest run --coverage",
-		"test:e2e": "playwright test",
-		"test": "npm run test:unit && npm run test:e2e"
+		"test": "vitest run",
+		"test:coverage": "vitest run --coverage"
 	},
 	"dependencies": {
 		"chokidar": "6.0.0",
 		"elkjs": "0.12.1",
-		"immer": "11.2.9",
 		"playwright": "1.65.0",
 		"tsx": "4.23.15",
 		"yaml": "2.9.1",
@@ -35,7 +32,6 @@
 	},
 	"devDependencies": {
 		"@eslint/js": "10.0.1",
-		"@playwright/test": "1.65.0",
 		"@sveltejs/adapter-static": "4.0.1",
 		"@sveltejs/kit": "3.1.1",
 		"@sveltejs/vite-plugin-svelte": "7.3.1",

@@ -51,9 +51,6 @@ export async function loadConfig(opts: LoadConfigOptions = {}): Promise<Resolved
 		root,
 		exportDir: path.resolve(base, user.exportDir ?? 'docs/diagrams'),
 		formats: user.formats ?? ['mermaid', 'svg'],
-		theme: user.theme ?? 'light',
-		defaultModelFile: user.defaultModelFile ?? 'model/model.model.yaml',
-		defaultViewFile: user.defaultViewFile ?? 'views/views.view.yaml',
-		snapGrid: user.snapGrid ?? 10
+		theme: user.theme ?? 'light'
 	};
 }

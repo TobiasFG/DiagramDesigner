@@ -5,8 +5,5 @@ export default {
 	root: 'design',
 	exportDir: 'docs/diagrams',
 	formats: ['mermaid', 'svg'],
-	theme: 'light',
-	defaultModelFile: 'model/model.model.yaml',
-	defaultViewFile: 'views/views.view.yaml',
-	snapGrid: 10
+	theme: 'light'
 } satisfies SdvConfig;

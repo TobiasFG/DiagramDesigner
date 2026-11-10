@@ -1,4 +1,4 @@
-import type { Model, ViewInfo } from '../model/model';
+import type { Model } from '../model/model';
 import { projectClass } from './class';
 import { projectComponent } from './component';
 import { laneId, projectFlow } from './flow';
@@ -26,18 +26,6 @@ export function project(model: Model, viewId: string): Projection | undefined {
 		case 'sequence':
 			return projectSequence(model, view, layout);
 	}
-}
-
-const LANDSCAPE: ViewInfo = {
-	id: 'landscape',
-	def: { id: 'landscape', type: 'component', layout: { direction: 'RIGHT' } },
-	generated: true,
-	title: 'Application landscape'
-};
-
-/** The whole model as one canvas; `expanded` lists the elements opened by zooming in. */
-export function projectLandscape(model: Model, expanded: ReadonlySet<string>) {
-	return projectComponent(model, LANDSCAPE, undefined, expanded);
 }
 
 export type * from './types';

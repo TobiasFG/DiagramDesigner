@@ -19,7 +19,7 @@
 </script>
 
 <!-- Opacity comes from CSS variables set on the canvas (--z, --cw, --ch) and on the node
-     wrapper (--w, --h, --pw, --ph, --rel, --force), so zooming never re-renders nodes. -->
+     wrapper (--w, --h, --pw, --ph), so zooming never re-renders nodes. -->
 <div
 	class="node"
 	class:group={d.group}
@@ -35,7 +35,7 @@
 	<div class="face" style:font-size="{font}px">
 		<div class="name">{d.name}</div>
 		{#if d.technology}<div class="tech">[{d.technology}]</div>{/if}
-		{#if d.description && d.group}<div class="desc">{d.description}</div>{/if}
+		{#if d.description}<div class="desc">{d.description}</div>{/if}
 	</div>
 </div>
 
@@ -51,7 +51,7 @@
 		height: 100%;
 		box-sizing: border-box;
 		border-radius: 8px;
-		opacity: calc(max(var(--vis), var(--force)) * var(--rel));
+		opacity: var(--vis);
 		cursor: pointer;
 	}
 	.node.group {

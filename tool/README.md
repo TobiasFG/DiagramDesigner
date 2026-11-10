@@ -5,7 +5,7 @@ the model reference and the CLI reference.
 
 ```sh
 npm install
-npm run dev          # viewer/editor on http://localhost:5173 (design root from ../sdv.config.ts)
+npm run dev          # viewer on http://localhost:5173 (design root from ../sdv.config.ts)
 npm run sdv -- validate
-npm test             # unit + end-to-end
+npm test             # unit tests
 ```
