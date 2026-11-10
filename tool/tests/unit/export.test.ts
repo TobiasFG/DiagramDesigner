@@ -37,32 +37,14 @@ describe('Mermaid generators', () => {
 		]).toEqual(['order_service', 'n_end', 'n_1st', 'order_service_2', 'order_service']);
 	});
 
-	it('escapes labels and lists dropped features as warnings', () => {
+	it('escapes labels', () => {
 		const { model } = loadStrings({
-			'model/a.model.yaml': [
-				'elements:',
-				'  - { id: a, kind: system, name: \'Say "hi"\' }',
-				'interactions:',
-				'  - id: i',
-				'    participants: [a, b]',
-				'    steps:',
-				'      - { from: a, to: b, msg: "C# stuff; more" }',
-				'      - group: loop',
-				'        label: retry',
-				'        steps: [ { from: b, to: a, kind: async } ]',
-				'        else: [ { label: never, steps: [] } ]'
-			].join('\n'),
+			'a/a.system.yaml': 'id: a\nname: \'Say "hi"; C# stuff\'\n',
 			'views/v.view.yaml': 'views:\n  - { id: v, type: component }\n'
 		});
-		expect(toMermaid(project(model, 'v')!).text).toContain(
-			'a["Say #quot;hi#quot;<br/>[Software System]"]'
-		);
-		const seq = toMermaid(project(model, 'i')!);
-		expect(seq.text).toContain('a->>b: C#35; stuff#59; more');
-		expect(seq.text).toContain('  loop retry\n    b-)a: \n  end');
-		expect(seq.warnings).toEqual([
-			'"loop" group cannot have else branches in Mermaid; branch 1 dropped'
-		]);
+		const m = toMermaid(project(model, 'v')!);
+		expect(m.text).toContain('a["Say #quot;hi#quot;; C# stuff<br/>[Software System]"]');
+		expect(m.warnings).toEqual([]);
 		expect(mermaidFence('x\n')).toBe('```mermaid\nx\n```\n');
 	});
 });
@@ -85,27 +67,27 @@ describe('SVG renderer', () => {
 	});
 
 	it('is self-contained and accessible', async () => {
-		const svg = renderedToSvg((await renderView(model, 'shop-containers', elk))!, 'light');
+		const svg = renderedToSvg((await renderView(model, 'erp-modules', elk))!, 'light');
 		expect(svg).toMatch(
 			/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="-?\d+ -?\d+ \d+ \d+"/
 		);
-		expect(svg).toContain('<title id="sdv-title">Web Shop — containers</title>');
+		expect(svg).toContain('<title id="sdv-title">ERP — modules</title>');
 		expect(svg).toContain(
-			'<desc id="sdv-desc">Component diagram with 8 nodes and 7 connections.</desc>'
+			'<desc id="sdv-desc">Component diagram with 3 nodes and 0 connections.</desc>'
 		);
 		expect(svg).not.toMatch(/foreignObject|var\(--|<image|@import|https?:\/\/(?!www\.w3\.org)/);
 		expect(svg).toContain('font-family="system-ui');
 	});
 
 	it('uses theme tokens for colours', async () => {
-		const r = (await renderView(model, 'system-context', elk))!;
+		const r = (await renderView(model, 'landscape', elk))!;
 		expect(renderedToSvg(r, 'light')).toContain('fill="#ffffff"');
 		expect(renderedToSvg(r, 'dark')).toContain('fill="#0d1117"');
 	});
 
 	it('names exports after the view export file or id', () => {
-		expect(exportBaseName(model, 'shop-containers')).toBe('shop-containers');
-		expect(exportBaseName(model, 'place-order')).toBe('place-order');
+		expect(exportBaseName(model, 'erp-modules')).toBe('erp');
+		expect(exportBaseName(model, 'landscape')).toBe('landscape');
 	});
 });
 

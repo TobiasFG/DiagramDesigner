@@ -45,8 +45,6 @@ export interface ElementNode extends NodeBase {
 	data: {
 		kind: Element['kind'];
 		label: string;
-		technology?: string;
-		description: string[];
 		/** Children hidden by depth or collapse. */
 		hiddenChildren: number;
 	};
@@ -54,7 +52,7 @@ export interface ElementNode extends NodeBase {
 
 export interface BoundaryNode extends NodeBase {
 	type: 'boundary';
-	data: { kind: Element['kind']; label: string; technology?: string };
+	data: { kind: Element['kind']; label: string };
 }
 
 export interface ClassNode extends NodeBase {
@@ -128,7 +126,7 @@ export interface RenderEdge {
 	ref?: EntityRef;
 	data: {
 		label?: string;
-		/** Secondary label line, e.g. technology. */
+		/** Secondary label line. */
 		sublabel?: string;
 		dashed: boolean;
 		markerStart: Marker;

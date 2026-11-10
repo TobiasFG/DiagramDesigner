@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "view": "landscape",
+  "nodes": {
+    "webshop": { "x": 600, "y": 0, "pinned": true }
+  },
+  "edges": {}
+}

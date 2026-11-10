@@ -1,0 +1,4 @@
+id: inventory
+parent: erp
+name: Inventory
+tags: [internal]

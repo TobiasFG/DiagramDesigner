@@ -70,8 +70,6 @@
 				data: {
 					name: info.name,
 					kind: info.def.kind,
-					technology: info.def.technology,
-					description: info.def.description,
 					group: info.childIds.length > 0,
 					selected: sel.has(b.id)
 				} satisfies LandscapeNodeData

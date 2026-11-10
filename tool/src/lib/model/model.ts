@@ -16,7 +16,7 @@ import type {
 	View,
 	ViewType
 } from './schema';
-import { ENTITY_KINDS } from './schema';
+import { ENTITY_KINDS, PARENT_KINDS } from './schema';
 import type { DataPath, Diagnostic, Severity } from './diagnostics';
 import { entityKind, fileKind } from './parse';
 import {
@@ -271,6 +271,16 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 			info.parentId = undefined;
 			continue;
 		}
+		const allowed = PARENT_KINDS[info.def.kind as EntityFileKind];
+		const parentKind = model.elements.get(info.parentId)!.def.kind;
+		if (allowed && !allowed.includes(parentKind as EntityFileKind))
+			diag(
+				'error',
+				'parent-kind',
+				`${info.def.kind} cannot have a ${parentKind} as parent; allowed: ${allowed.join(', ')}`,
+				info.loc,
+				'parent'
+			);
 		const seen = new Set([info.id]);
 		let cur: string | undefined = info.parentId;
 		while (cur && !seen.has(cur)) {

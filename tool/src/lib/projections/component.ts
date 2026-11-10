@@ -54,7 +54,7 @@ export function projectComponent(model: Model, view: ViewInfo, layout?: LayoutFi
 					isGroup: true,
 					...size,
 					ref,
-					data: { kind: info.def.kind, label: info.name, technology: info.def.technology }
+					data: { kind: info.def.kind, label: info.name }
 				});
 				addTree(id);
 			} else {
@@ -62,8 +62,6 @@ export function projectComponent(model: Model, view: ViewInfo, layout?: LayoutFi
 				const size = sizeElement({
 					kind: info.def.kind,
 					label: info.name,
-					technology: info.def.technology,
-					description: info.def.description,
 					hiddenChildren
 				});
 				nodes.push({
@@ -77,8 +75,6 @@ export function projectComponent(model: Model, view: ViewInfo, layout?: LayoutFi
 					data: {
 						kind: info.def.kind,
 						label: info.name,
-						technology: info.def.technology,
-						description: size.description,
 						hiddenChildren
 					}
 				});
@@ -109,7 +105,6 @@ export function projectComponent(model: Model, view: ViewInfo, layout?: LayoutFi
 				ref: { kind: 'relationship', file: rel.loc.file, path: rel.loc.path },
 				data: {
 					label: rel.def.label,
-					sublabel: rel.def.technology,
 					dashed: rel.def.sync === false,
 					markerStart: 'none',
 					markerEnd: 'arrow'

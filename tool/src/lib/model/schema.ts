@@ -48,8 +48,6 @@ export interface Element {
 	id: string;
 	kind: (typeof ELEMENT_KINDS)[number] | EntityFileKind;
 	name?: string;
-	description?: string;
-	technology?: string;
 	tags?: string[];
 	links?: { label: string; url: string }[];
 	meta?: Record<string, string>;
@@ -58,9 +56,12 @@ export interface Element {
 
 export const Element: z.ZodType<Element> = z
 	.strictObject({
-		...common,
+		id: common.id,
+		name: common.name,
+		tags: common.tags,
+		links: common.links,
+		meta: common.meta,
 		kind: ElementKind,
-		technology: z.string().optional(),
 		get children() {
 			return z.array(Element).optional();
 		}
@@ -73,7 +74,6 @@ export const Relationship = z.strictObject({
 	to: Id,
 	label: Text.optional(),
 	description: Text.optional(),
-	technology: z.string().optional(),
 	sync: z.boolean().optional().describe('false renders dashed (async); default true'),
 	tags: z.array(z.string()).optional(),
 	meta: Meta.optional()
@@ -81,8 +81,22 @@ export const Relationship = z.strictObject({
 export type Relationship = z.infer<typeof Relationship>;
 
 /** Kinds an entity file can have; the file name `<name>.<kind>.yaml` gives it. */
-export const ENTITY_KINDS = ['system', 'module', 'model', 'class', 'interface'] as const;
+export const ENTITY_KINDS = [
+	'system',
+	'module',
+	'model',
+	'class',
+	'interface',
+	'method',
+	'api'
+] as const;
 export type EntityFileKind = (typeof ENTITY_KINDS)[number];
+
+/** Kinds a parent must have, for kinds that may only sit under certain parents. */
+export const PARENT_KINDS: Partial<Record<EntityFileKind, EntityFileKind[]>> = {
+	method: ['module', 'class', 'interface'],
+	api: ['system', 'module']
+};
 
 /**
  * One entity per file, named `<name>.<kind>.yaml`. The id is generated once and never
@@ -94,8 +108,6 @@ export const EntityFile = z
 		id: Id.describe('Generated with `sdv new`; never edited'),
 		parent: Id.optional().describe('Id of the parent entity; omitted only for systems'),
 		name: Text.optional().describe('Display name; defaults to the file name'),
-		description: Text.optional(),
-		technology: z.string().optional(),
 		tags: z.array(z.string()).optional(),
 		links: z.array(DocLink).optional(),
 		meta: Meta.optional()

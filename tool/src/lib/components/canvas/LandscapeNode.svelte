@@ -2,8 +2,6 @@
 	export interface LandscapeNodeData extends Record<string, unknown> {
 		name: string;
 		kind: string;
-		technology?: string;
-		description?: string;
 		group: boolean;
 		selected: boolean;
 	}
@@ -34,8 +32,6 @@
 	{/if}
 	<div class="face" style:font-size="{font}px">
 		<div class="name">{d.name}</div>
-		{#if d.technology}<div class="tech">[{d.technology}]</div>{/if}
-		{#if d.description}<div class="desc">{d.description}</div>{/if}
 	</div>
 </div>
 
@@ -84,11 +80,6 @@
 	}
 	.name {
 		font-weight: 600;
-	}
-	.tech,
-	.desc {
-		font-size: 0.7em;
-		opacity: 0.85;
 	}
 	.header {
 		position: absolute;

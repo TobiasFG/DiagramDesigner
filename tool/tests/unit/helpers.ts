@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadDesign, type LoadedDesign, type SourceFile } from '../../src/lib/model/loader';
 
-export const FIXTURE_ROOT = fileURLToPath(new URL('../../../design', import.meta.url));
+export const FIXTURE_ROOT = fileURLToPath(new URL('../fixtures/design', import.meta.url));
 
 function walk(dir: string, base = dir): string[] {
 	return readdirSync(dir).flatMap((name) => {

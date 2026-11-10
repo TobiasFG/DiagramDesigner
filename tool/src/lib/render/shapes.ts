@@ -71,14 +71,16 @@ const KIND_LABEL: Record<ElementNode['data']['kind'], string> = {
 	module: 'Module',
 	model: 'Model',
 	class: 'Class',
-	interface: 'Interface'
+	interface: 'Interface',
+	method: 'Method',
+	api: 'API'
 };
 
-export function elementMeta(kind: ElementNode['data']['kind'], technology?: string): string {
-	return technology ? `[${KIND_LABEL[kind]}: ${technology}]` : `[${KIND_LABEL[kind]}]`;
+export function elementMeta(kind: ElementNode['data']['kind']): string {
+	return `[${KIND_LABEL[kind]}]`;
 }
 
-const EL = { minW: 160, maxW: 240, padX: 12, label: 14, meta: 11, desc: 12, descLine: 15 };
+const EL = { minW: 160, maxW: 240, padX: 12, label: 14, meta: 11 };
 const PERSON_HEAD = 28;
 const CYL_RY = 8;
 
@@ -89,25 +91,19 @@ function elementBodyTop(kind: string): number {
 export function sizeElement(d: {
 	kind: ElementNode['data']['kind'];
 	label: string;
-	technology?: string;
-	description?: string;
 	hiddenChildren: number;
-}): { width: number; height: number; description: string[] } {
-	const meta = elementMeta(d.kind, d.technology);
+}): { width: number; height: number } {
+	const meta = elementMeta(d.kind);
 	const extraX = d.kind === 'queue' ? CYL_RY * 2 : 0;
 	const width = clamp(
 		Math.max(textWidth(d.label, EL.label, true), textWidth(meta, EL.meta)) + EL.padX * 2 + extraX,
 		EL.minW,
 		EL.maxW
 	);
-	const description = d.description
-		? wrapText(d.description, width - EL.padX * 2 - extraX, EL.desc, 3)
-		: [];
 	let height = elementBodyTop(d.kind) + 12 + 18 + 16;
-	if (description.length) height += 4 + description.length * EL.descLine;
 	if (d.hiddenChildren) height += 16;
 	height += 12;
-	return { width, height, description };
+	return { width, height };
 }
 
 function kindColors(kind: string, t: TokenResolver) {
@@ -237,20 +233,11 @@ function drawElement(n: ElementNode, w: number, h: number, t: TokenResolver): Sv
 		svgText(
 			cx,
 			baseline(y, EL.meta),
-			truncate(elementMeta(kind, n.data.technology), innerW, EL.meta),
+			truncate(elementMeta(kind), innerW, EL.meta),
 			{ size: EL.meta, fill: c.text, anchor: 'middle' }
 		)
 	);
 	y += 16;
-	if (n.data.description.length) {
-		y += 4;
-		for (const line of n.data.description) {
-			texts.push(
-				svgText(cx, baseline(y, EL.desc), line, { size: EL.desc, fill: c.text, anchor: 'middle' })
-			);
-			y += EL.descLine;
-		}
-	}
 	if (n.data.hiddenChildren) {
 		const s = `+${n.data.hiddenChildren} inside`;
 		texts.push(
@@ -287,7 +274,7 @@ function drawBoundary(n: BoundaryNode, w: number, h: number, t: TokenResolver): 
 			fill: t('boundary-text'),
 			cls: 'sdv-label'
 		}),
-		svgText(12, baseline(27, 11), elementMeta(n.data.kind, n.data.technology), {
+		svgText(12, baseline(27, 11), elementMeta(n.data.kind), {
 			size: 11,
 			fill: t('boundary-text')
 		})

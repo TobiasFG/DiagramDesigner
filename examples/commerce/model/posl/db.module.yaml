@@ -1,5 +1,0 @@
-id: rtvuk3d9qg
-parent: p32m9l9i8o
-name: Database
-description: Product, attribute and translation storage
-technology: PostgreSQL, Kysely

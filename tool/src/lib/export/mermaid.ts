@@ -106,7 +106,7 @@ function flowchartNode(node: RenderNode, id: (s: string) => string): string {
 	const n = id(node.id);
 	switch (node.type) {
 		case 'element': {
-			const label = q(`${node.data.label}\n${elementMeta(node.data.kind, node.data.technology)}`);
+			const label = q(`${node.data.label}\n${elementMeta(node.data.kind)}`);
 			if (node.data.kind === 'person') return `${n}(["${label}"])`;
 			if (node.data.kind === 'datastore') return `${n}[("${label}")]`;
 			if (node.data.kind === 'queue') return `${n}>"${label}"]`;
@@ -139,7 +139,7 @@ function flowchartNode(node: RenderNode, id: (s: string) => string): string {
 
 function groupLabel(node: RenderNode): string {
 	if (node.type === 'boundary')
-		return `${node.data.label}\n${elementMeta(node.data.kind, node.data.technology)}`;
+		return `${node.data.label}\n${elementMeta(node.data.kind)}`;
 	return 'label' in node.data ? node.data.label : node.id;
 }
 
