@@ -126,7 +126,11 @@ const KIND_NAMES: Record<Element['kind'], string> = {
 	component: 'Component',
 	external: 'External System',
 	datastore: 'Database',
-	queue: 'Queue'
+	queue: 'Queue',
+	module: 'Module',
+	model: 'Model',
+	class: 'Class',
+	interface: 'Interface'
 };
 
 export function addElement(opts: {

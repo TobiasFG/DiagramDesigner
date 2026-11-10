@@ -8,6 +8,8 @@ const HELP = `sdv — System Design Viewer CLI
 
 Usage:
   sdv validate                 schema + reference checks; exit 1 on errors
+  sdv new <name.kind.yaml> [--parent id]
+                               create an entity file with a generated id
   sdv export [--view id]... [--format mermaid,svg,png] [--out dir] [--theme light|dark]
   sdv export --check           exit 1 if committed exports differ from fresh ones
   sdv md-sync <file.md>...     refresh <!-- sdv:view ... --> regions in Markdown
@@ -46,6 +48,7 @@ export async function main(
 			format: { type: 'string' },
 			out: { type: 'string' },
 			theme: { type: 'string' },
+			parent: { type: 'string' },
 			check: { type: 'boolean' },
 			quiet: { type: 'boolean', short: 'q' }
 		}
@@ -70,6 +73,10 @@ export async function main(
 				);
 			}
 			return hasErrors(diags) ? 1 : 0;
+		}
+		case 'new': {
+			const { runNew } = await import('./new');
+			return runNew(positionals, values.parent, io, cwd);
 		}
 		case 'export': {
 			const { runExport } = await import('./export');

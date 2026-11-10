@@ -5,7 +5,7 @@ import { produce } from 'immer';
 import { editYamlText } from '../../src/lib/server/yaml-edit';
 
 const FIXTURE = readFileSync(
-	new URL('../fixtures/roundtrip/comments.model.yaml', import.meta.url),
+	new URL('../fixtures/roundtrip/comments.yaml', import.meta.url),
 	'utf8'
 );
 

@@ -13,7 +13,7 @@
 	import { design } from '#lib/client/store.svelte.ts';
 	import { theme } from '#lib/client/theme.svelte.ts';
 	import type { ViewState } from '#lib/client/view-state.svelte.ts';
-	import { contextFor, type ContextEdge } from '#lib/landscape/context.ts';
+	import { contextFor } from '#lib/landscape/context.ts';
 	import { browserElk } from '#lib/layout/elk-browser.ts';
 	import { layoutGraph } from '#lib/layout/layout.ts';
 	import type { Box, PositionedGraph } from '#lib/layout/types.ts';
@@ -26,7 +26,6 @@
 	const flow = useSvelteFlow();
 	const viewport = useViewport();
 	const nodeTypes = { landscape: LandscapeNode };
-	const FLY = 700;
 	// A box counts as open once it fills this share of the canvas, where its children start
 	// to fade in (see LandscapeNode).
 	const OPEN = 0.55;
@@ -132,31 +131,11 @@
 		});
 	});
 
-	function flyTo(id: string) {
-		const b = boxes.get(id);
-		if (b) flow.fitBounds(b, { padding: 0.12, duration: FLY });
-	}
-	const flyHome = () => placed && flow.fitBounds(placed.bounds, { padding: 0.08, duration: FLY });
-
 	const inFocus = (id: string) => {
 		for (let cur: string | undefined = id; cur; cur = el(cur)?.parentId)
 			if (cur === focus) return true;
 		return false;
 	};
-
-	/** Flies to the far end of a connection; a single API opens as its parent. */
-	function followEdge(e: ContextEdge) {
-		const far =
-			focus && !inFocus(e.target) ? e.target : focus && !inFocus(e.source) ? e.source : e.target;
-		flyTo(el(far)!.childIds.length ? far : (el(far)!.parentId ?? far));
-	}
-
-	const trail = $derived.by(() => {
-		const out: { id: string; name: string }[] = [];
-		for (let cur = focus; cur; cur = el(cur)?.parentId)
-			out.unshift({ id: cur, name: el(cur)!.name });
-		return out;
-	});
 
 	// ---------------------------------------------------------------- edge geometry
 	/** Where the line from the centre of `b` towards (tx, ty) leaves the box. */
@@ -204,13 +183,6 @@
 	style:--ch={ch}
 	data-testid="canvas"
 >
-	<nav class="trail" aria-label="Zoom path">
-		<button onclick={flyHome}>Landscape</button>
-		{#each trail as t (t.id)}
-			<span>›</span>
-			<button onclick={() => flyTo(t.id)}>{t.name}</button>
-		{/each}
-	</nav>
 	<SvelteFlow
 		bind:nodes
 		{nodeTypes}
@@ -221,10 +193,7 @@
 		nodesConnectable={false}
 		elementsSelectable={false}
 		zoomOnDoubleClick={false}
-		onnodeclick={({ node }) => {
-			view.selectedNodes = [node.id];
-			if (el(node.id)?.childIds.length) flyTo(node.id);
-		}}
+		onnodeclick={({ node }) => (view.selectedNodes = [node.id])}
 		onpaneclick={() => (view.selectedNodes = [])}
 	>
 		<Background
@@ -247,19 +216,6 @@
 							stroke-dasharray={l.e.dashed ? `${6 / z} ${4 / z}` : undefined}
 						/>
 						<polygon points={arrow(l.x2, l.y2, l.angle)} />
-						<!-- svelte-ignore a11y_click_events_have_key_events -->
-						<line
-							class="hit"
-							role="button"
-							tabindex="-1"
-							aria-label={l.e.label ?? `${l.e.source} to ${l.e.target}`}
-							x1={l.x1}
-							y1={l.y1}
-							x2={l.x2}
-							y2={l.y2}
-							stroke-width={14 / z}
-							onclick={() => followEdge(l.e)}
-						/>
 						{#if l.e.label}
 							<text x={labelAt(l)[0]} y={labelAt(l)[1]} font-size={12 / z} stroke-width={4 / z}
 								>{l.e.label}</text
@@ -295,29 +251,6 @@
 	.canvas :global(.svelte-flow__node.ghost) {
 		pointer-events: none;
 	}
-	.trail {
-		position: absolute;
-		z-index: 10;
-		top: 8px;
-		left: 8px;
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		padding: 4px 6px;
-		background: var(--ui-panel);
-		border: 1px solid var(--ui-border);
-		border-radius: 8px;
-		box-shadow: var(--ui-shadow);
-		font-size: 13px;
-	}
-	.trail button {
-		border: none;
-		background: none;
-		padding: 2px 4px;
-	}
-	.trail button:last-child {
-		font-weight: 600;
-	}
 	.edges {
 		position: absolute;
 		overflow: visible;
@@ -329,15 +262,6 @@
 		animation: appear 250ms ease;
 		stroke: var(--sdv-edge);
 		fill: var(--sdv-edge);
-	}
-	.edge:hover {
-		stroke: var(--sdv-edge-highlight);
-		fill: var(--sdv-edge-highlight);
-	}
-	.hit {
-		stroke: transparent;
-		pointer-events: stroke;
-		cursor: pointer;
 	}
 	text {
 		text-anchor: middle;

@@ -24,9 +24,9 @@
 	class="node"
 	class:group={d.group}
 	class:selected={d.selected}
-	style:--fill="var(--sdv-{d.kind}-fill)"
-	style:--stroke="var(--sdv-{d.kind}-stroke)"
-	style:--text="var(--sdv-{d.kind}-text)"
+	style:--fill="var(--sdv-{d.kind}-fill, var(--sdv-container-fill))"
+	style:--stroke="var(--sdv-{d.kind}-stroke, var(--sdv-container-stroke))"
+	style:--text="var(--sdv-{d.kind}-text, var(--sdv-container-text))"
 	style:--hdr="{Math.max(8, height * 0.06)}px"
 >
 	{#if d.group}

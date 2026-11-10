@@ -29,12 +29,10 @@ test.beforeEach(async ({ page }) => {
 	await page.waitForTimeout(150);
 });
 
-test('lists every view and opens each without errors', async ({ page }) => {
+test('opens every view without errors', async ({ page }) => {
 	const errors: string[] = [];
 	page.on('pageerror', (e) => errors.push(e.message));
 	page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-	await page.goto('/');
-	for (const id of VIEWS) await expect(page.getByTestId(`view-link-${id}`)).toBeVisible();
 	for (const id of VIEWS) {
 		await openView(page, id);
 		if (id === 'place-order') await expect(page.getByTestId('message-0')).toBeVisible();

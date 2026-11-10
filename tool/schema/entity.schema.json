@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Generated with `sdv new`; never edited"
+    },
+    "parent": {
+      "description": "Id of the parent entity; omitted only for systems",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "name": {
+      "description": "Display name; defaults to the file name",
+      "type": [
+        "string",
+        "number"
+      ]
+    },
+    "description": {
+      "type": [
+        "string",
+        "number"
+      ]
+    },
+    "technology": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "url"
+        ],
+        "additionalProperties": false,
+        "description": "Documentation link"
+      }
+    },
+    "meta": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Free-form string metadata"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "additionalProperties": false,
+  "description": "System Design Viewer entity file (<name>.<kind>.yaml)",
+  "title": "System Design Viewer entity file"
+}

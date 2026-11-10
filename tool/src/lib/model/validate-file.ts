@@ -1,19 +1,5 @@
 import type { z } from 'zod';
-import {
-	ClassDef,
-	Element,
-	Flow,
-	Interaction,
-	LayoutFile,
-	MODEL_SECTIONS,
-	ObjectDef,
-	Pipeline,
-	Relationship,
-	View,
-	type ModelFile,
-	type ModelSection,
-	type ViewFile
-} from './schema';
+import { EntityFile, LayoutFile, View, type ViewFile } from './schema';
 import { formatPath, type DataPath, type Diagnostic } from './diagnostics';
 import type { FileKind } from './parse';
 
@@ -24,16 +10,6 @@ export interface RawIssue {
 	/** Offending key when the issue is an unrecognized key. */
 	key?: string;
 }
-
-const SECTION_SCHEMAS: Record<ModelSection, z.ZodType> = {
-	elements: Element,
-	relationships: Relationship,
-	classes: ClassDef,
-	objects: ObjectDef,
-	flows: Flow,
-	pipelines: Pipeline,
-	interactions: Interaction
-};
 
 type ZodIssueLike = {
 	code: string;
@@ -86,46 +62,8 @@ export interface IndexedItem<T = unknown> {
 	value: T;
 }
 
-export interface ValidatedModelFile extends ValidatedFile<ModelFile> {
-	sections: Partial<Record<ModelSection, IndexedItem[]>>;
-}
-
 export interface ValidatedViewFile extends ValidatedFile<ViewFile> {
 	views: IndexedItem<View>[];
-}
-
-/** Validates a model file, keeping every entity that is valid on its own. */
-export function validateModelFile(data: unknown): ValidatedModelFile {
-	const issues: RawIssue[] = [];
-	const value: ModelFile = {};
-	const sections: ValidatedModelFile['sections'] = {};
-	if (data === null || data === undefined) return { value, issues, sections };
-	if (!isRecord(data)) {
-		issues.push({ path: [], message: 'model file must be a mapping of sections' });
-		return { value, issues, sections };
-	}
-	for (const [key, section] of Object.entries(data)) {
-		if (!(MODEL_SECTIONS as readonly string[]).includes(key)) {
-			issues.push({ path: [], key, message: `unknown section "${key}"` });
-			continue;
-		}
-		const name = key as ModelSection;
-		if (section === null || section === undefined) continue;
-		if (!Array.isArray(section)) {
-			issues.push({ path: [name], message: 'must be a list' });
-			continue;
-		}
-		const schema = SECTION_SCHEMAS[name];
-		const kept: IndexedItem[] = [];
-		section.forEach((item, i) => {
-			const res = schema.safeParse(item);
-			if (res.success) kept.push({ index: i, value: res.data });
-			else issues.push(...zodIssues(res.error, [name, i]));
-		});
-		sections[name] = kept;
-		(value as Record<string, unknown[]>)[name] = kept.map((k) => k.value);
-	}
-	return { value, issues, sections };
 }
 
 export function validateViewFile(data: unknown): ValidatedViewFile {
@@ -162,8 +100,14 @@ export function validateLayoutFile(data: unknown): ValidatedFile<LayoutFile | un
 	return { value: undefined, issues: zodIssues(res.error) };
 }
 
+export function validateEntityFile(data: unknown): ValidatedFile<EntityFile | undefined> {
+	const res = EntityFile.safeParse(data);
+	if (res.success) return { value: res.data, issues: [] };
+	return { value: undefined, issues: zodIssues(res.error) };
+}
+
 export function validateFile(kind: FileKind, data: unknown): ValidatedFile<unknown> {
-	if (kind === 'model') return validateModelFile(data);
+	if (kind === 'entity') return validateEntityFile(data);
 	if (kind === 'view') return validateViewFile(data);
 	return validateLayoutFile(data);
 }

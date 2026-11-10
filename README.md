@@ -44,7 +44,8 @@ Technical / deployment architecture
   under the centre is the focus. Everything unrelated to it fades, and only its connections
   are drawn. A consumer in focus shows the specific APIs it calls. A provider in focus shows
   lines from its APIs to the consuming systems. Clicking a box or a line flies there.
-  `npm run dev:example` opens a minimal three-system model from `examples/three-systems/`.
+  `npm run dev:commerce` opens the development landscape in `examples/commerce/`: one file
+  per entity (`<name>.<kind>.yaml`), one folder per system.
 - **Not yet:** attaching flow, sequence and class/ER diagrams to elements and connections;
   linking connections to data models; saving which boxes are open.
 - **Still the earlier prototype:** the six separate diagram types (component, class, object,
@@ -74,7 +75,7 @@ Requires Node 22.12+.
 ```sh
 npm install          # also installs tool/
 npm run dev          # http://localhost:5173
-npm run dev:example  # the same, on examples/three-systems
+npm run dev:commerce # the same, on examples/commerce
 npm run validate     # schema and reference checks
 npm run export       # regenerate docs/diagrams
 npm test

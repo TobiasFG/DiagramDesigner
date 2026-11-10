@@ -1,7 +1,7 @@
 import type { DataPath, Diagnostic } from '../model/diagnostics';
 import type {
 	CLASS_KINDS,
-	ElementKind,
+	Element,
 	EntityKind,
 	FLOW_NODE_TYPES,
 	GROUP_KINDS,
@@ -10,7 +10,6 @@ import type {
 	RELATION_TYPES,
 	ViewType
 } from '../model/schema';
-import type { z } from 'zod';
 
 /** Points at the raw data of an entity, for the properties panel and edit commands. */
 export interface EntityRef {
@@ -44,7 +43,7 @@ interface NodeBase {
 export interface ElementNode extends NodeBase {
 	type: 'element';
 	data: {
-		kind: z.infer<typeof ElementKind>;
+		kind: Element['kind'];
 		label: string;
 		technology?: string;
 		description: string[];
@@ -55,7 +54,7 @@ export interface ElementNode extends NodeBase {
 
 export interface BoundaryNode extends NodeBase {
 	type: 'boundary';
-	data: { kind: z.infer<typeof ElementKind>; label: string; technology?: string };
+	data: { kind: Element['kind']; label: string; technology?: string };
 }
 
 export interface ClassNode extends NodeBase {
@@ -169,7 +168,7 @@ export interface RenderGraph {
 export interface SeqParticipant {
 	id: string;
 	label: string;
-	kind?: z.infer<typeof ElementKind>;
+	kind?: Element['kind'];
 	/** Not an element of the model. */
 	plain: boolean;
 	ref?: EntityRef;

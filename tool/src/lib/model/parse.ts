@@ -1,12 +1,19 @@
 import { isMap, isNode, isPair, isScalar, LineCounter, parseDocument, type Document } from 'yaml';
 import type { DataPath, Diagnostic } from './diagnostics';
 
-export type FileKind = 'model' | 'view' | 'layout';
+export type FileKind = 'view' | 'layout' | 'entity';
+
+const ENTITY_FILE = /\.([a-z][a-z0-9-]*)\.ya?ml$/;
+
+/** The `<kind>` of an entity file named `<name>.<kind>.yaml`. */
+export function entityKind(path: string): string | undefined {
+	return fileKind(path) === 'entity' ? path.match(ENTITY_FILE)![1] : undefined;
+}
 
 export function fileKind(path: string): FileKind | null {
-	if (path.endsWith('.model.yaml') || path.endsWith('.model.yml')) return 'model';
 	if (path.endsWith('.view.yaml') || path.endsWith('.view.yml')) return 'view';
 	if (path.endsWith('.layout.json')) return 'layout';
+	if (ENTITY_FILE.test(path)) return 'entity';
 	return null;
 }
 

@@ -5,7 +5,7 @@
 	"scripts": {
 		"postinstall": "cd tool && bun install",
 		"dev": "npm --prefix tool run dev",
-		"dev:example": "SDV_ROOT=../examples/three-systems npm --prefix tool run dev",
+		"dev:commerce": "SDV_ROOT=../examples/commerce npm --prefix tool run dev",
 		"dev:posl": "SDV_CONFIG=../../posl/sdv.config.ts npm --prefix tool run dev",
 		"sdv": "node tool/cli/bin.js",
 		"validate": "node tool/cli/bin.js validate",

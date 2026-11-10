@@ -46,7 +46,7 @@ export const ElementKind = z.enum(ELEMENT_KINDS);
 
 export interface Element {
 	id: string;
-	kind: (typeof ELEMENT_KINDS)[number];
+	kind: (typeof ELEMENT_KINDS)[number] | EntityFileKind;
 	name?: string;
 	description?: string;
 	technology?: string;
@@ -79,6 +79,29 @@ export const Relationship = z.strictObject({
 	meta: Meta.optional()
 });
 export type Relationship = z.infer<typeof Relationship>;
+
+/** Kinds an entity file can have; the file name `<name>.<kind>.yaml` gives it. */
+export const ENTITY_KINDS = ['system', 'module', 'model', 'class', 'interface'] as const;
+export type EntityFileKind = (typeof ENTITY_KINDS)[number];
+
+/**
+ * One entity per file, named `<name>.<kind>.yaml`. The id is generated once and never
+ * edited, so renaming or moving the file changes nothing. Systems sit in their own folder
+ * and have no parent; every other entity names its parent by id.
+ */
+export const EntityFile = z
+	.strictObject({
+		id: Id.describe('Generated with `sdv new`; never edited'),
+		parent: Id.optional().describe('Id of the parent entity; omitted only for systems'),
+		name: Text.optional().describe('Display name; defaults to the file name'),
+		description: Text.optional(),
+		technology: z.string().optional(),
+		tags: z.array(z.string()).optional(),
+		links: z.array(DocLink).optional(),
+		meta: Meta.optional()
+	})
+	.describe('System Design Viewer entity file (<name>.<kind>.yaml)');
+export type EntityFile = z.infer<typeof EntityFile>;
 
 // ---------------------------------------------------------------- classes
 
@@ -274,30 +297,6 @@ export const Interaction = z.strictObject({
 export type Interaction = z.infer<typeof Interaction>;
 
 // ---------------------------------------------------------------- files
-
-export const ModelFile = z
-	.strictObject({
-		elements: z.array(Element).optional(),
-		relationships: z.array(Relationship).optional(),
-		classes: z.array(ClassDef).optional(),
-		objects: z.array(ObjectDef).optional(),
-		flows: z.array(Flow).optional(),
-		pipelines: z.array(Pipeline).optional(),
-		interactions: z.array(Interaction).optional()
-	})
-	.describe('System Design Viewer model file (*.model.yaml)');
-export type ModelFile = z.infer<typeof ModelFile>;
-
-export const MODEL_SECTIONS = [
-	'elements',
-	'relationships',
-	'classes',
-	'objects',
-	'flows',
-	'pipelines',
-	'interactions'
-] as const;
-export type ModelSection = (typeof MODEL_SECTIONS)[number];
 
 export const VIEW_TYPES = ['component', 'class', 'object', 'flow', 'pipeline', 'sequence'] as const;
 export type ViewType = (typeof VIEW_TYPES)[number];

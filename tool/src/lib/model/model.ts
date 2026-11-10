@@ -1,6 +1,8 @@
 import type {
 	ClassDef,
 	Element,
+	EntityFile,
+	EntityFileKind,
 	Flow,
 	GroupStep,
 	Interaction,
@@ -14,12 +16,13 @@ import type {
 	View,
 	ViewType
 } from './schema';
+import { ENTITY_KINDS } from './schema';
 import type { DataPath, Diagnostic, Severity } from './diagnostics';
-import { fileKind } from './parse';
+import { entityKind, fileKind } from './parse';
 import {
 	toDiagnostic,
+	validateEntityFile,
 	validateLayoutFile,
-	validateModelFile,
 	validateViewFile,
 	type IndexedItem
 } from './validate-file';
@@ -188,68 +191,17 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 	};
 
 	const viewItems: { file: string; item: IndexedItem<View> }[] = [];
+	const entityFiles: { file: string; value: EntityFile }[] = [];
 
 	for (const file of model.files) {
 		const kind = fileKind(file);
 		const data = files[file];
 		if (!kind || data === undefined) continue; // syntax errors are reported by the parser
 		const fileLocate = (path: DataPath, key?: string) => locate?.(file, path, key);
-		if (kind === 'model') {
-			const res = validateModelFile(data);
+		if (kind === 'entity') {
+			const res = validateEntityFile(data);
 			for (const issue of res.issues) model.diagnostics.push(toDiagnostic(file, issue, fileLocate));
-			const s = res.sections;
-			const addElement = (
-				def: Element,
-				path: DataPath,
-				parentId: string | undefined,
-				depth: number
-			) => {
-				const loc = { file, path };
-				if (!claim(def.id, 'element', loc)) return;
-				const info: ElementInfo = {
-					id: def.id,
-					def,
-					name: def.name ?? def.id,
-					tags: def.tags,
-					parentId,
-					childIds: [],
-					depth,
-					loc
-				};
-				model.elements.set(def.id, info);
-				if (parentId) model.elements.get(parentId)!.childIds.push(def.id);
-				else model.rootElementIds.push(def.id);
-				def.children?.forEach((child, i) =>
-					addElement(child, [...path, 'children', i], def.id, depth + 1)
-				);
-			};
-			for (const { index, value } of s.elements ?? [])
-				addElement(value as Element, ['elements', index], undefined, 0);
-			for (const { index, value } of s.relationships ?? []) {
-				model.relationships.push({
-					def: value as Relationship,
-					loc: { file, path: ['relationships', index] },
-					key: ''
-				});
-			}
-			const addEntity = <T extends { id: string; name?: string; tags?: string[] }>(
-				items: IndexedItem[] | undefined,
-				section: string,
-				kind: GlobalKind,
-				map: Map<string, EntityInfo<T>>
-			) => {
-				for (const { index, value } of items ?? []) {
-					const def = value as T;
-					const loc = { file, path: [section, index] };
-					if (!claim(def.id, kind, loc)) continue;
-					map.set(def.id, { id: def.id, def, name: def.name ?? def.id, tags: def.tags, loc });
-				}
-			};
-			addEntity(s.classes, 'classes', 'class', model.classes);
-			addEntity(s.objects, 'objects', 'object', model.objects);
-			addEntity(s.flows, 'flows', 'flow', model.flows);
-			addEntity(s.pipelines, 'pipelines', 'pipeline', model.pipelines);
-			addEntity(s.interactions, 'interactions', 'interaction', model.interactions);
+			if (res.value) entityFiles.push({ file, value: res.value });
 		} else if (kind === 'view') {
 			const res = validateViewFile(data);
 			for (const issue of res.issues) model.diagnostics.push(toDiagnostic(file, issue, fileLocate));
@@ -268,6 +220,96 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 				);
 			}
 			model.layouts.set(res.value.view, { file, data: res.value });
+		}
+	}
+
+	// ------------------------------------------------------------ entity files
+	// Parents are linked after every file is read, since files load in path order.
+	const entities: ElementInfo[] = [];
+	for (const { file, value } of entityFiles) {
+		const loc = { file, path: [] };
+		const kind = entityKind(file) as EntityFileKind;
+		if (!ENTITY_KINDS.includes(kind)) {
+			diag(
+				'error',
+				'unknown-kind',
+				`unknown kind "${kind}"; expected ${ENTITY_KINDS.join(', ')}`,
+				loc
+			);
+			continue;
+		}
+		if (!claim(value.id, 'element', loc)) continue;
+		const { parent, ...rest } = value;
+		const base = file.slice(file.lastIndexOf('/') + 1).split('.')[0];
+		const info: ElementInfo = {
+			id: value.id,
+			def: { ...rest, kind },
+			name: value.name ?? base,
+			tags: value.tags,
+			parentId: parent,
+			childIds: [],
+			depth: 0,
+			loc
+		};
+		model.elements.set(value.id, info);
+		entities.push(info);
+		if (kind === 'system' && parent)
+			diag('error', 'system-parent', `system "${info.name}" cannot have a parent`, loc, 'parent');
+		if (kind !== 'system' && !parent)
+			diag('error', 'missing-parent', `${kind} "${info.name}" needs a parent`, loc, 'id');
+	}
+	for (const info of entities) {
+		if (!info.parentId) continue;
+		if (!model.elements.has(info.parentId)) {
+			diag(
+				'error',
+				'dangling-ref',
+				`parent "${info.parentId}" is not an entity`,
+				info.loc,
+				'parent'
+			);
+			info.parentId = undefined;
+			continue;
+		}
+		const seen = new Set([info.id]);
+		let cur: string | undefined = info.parentId;
+		while (cur && !seen.has(cur)) {
+			seen.add(cur);
+			cur = model.elements.get(cur)?.parentId;
+		}
+		if (cur === info.id) {
+			diag('error', 'parent-cycle', `parent chain of "${info.name}" loops`, info.loc, 'parent');
+			info.parentId = undefined;
+		}
+	}
+	const folderOf = (file: string) => file.slice(0, file.lastIndexOf('/') + 1);
+	const systemFolders = new Map<string, ElementInfo>();
+	for (const info of entities) {
+		if (info.parentId) model.elements.get(info.parentId)!.childIds.push(info.id);
+		else model.rootElementIds.push(info.id);
+		let top = info;
+		while (top.parentId) {
+			top = model.elements.get(top.parentId)!;
+			info.depth++;
+		}
+		const folder = folderOf(top.loc.file);
+		if (info === top && info.def.kind === 'system') {
+			const other = systemFolders.get(folder);
+			if (other)
+				diag(
+					'error',
+					'shared-system-folder',
+					`system "${info.name}" shares its folder with "${other.name}"; give each system its own folder`,
+					info.loc
+				);
+			else systemFolders.set(folder, info);
+		} else if (top.def.kind === 'system' && !info.loc.file.startsWith(folder)) {
+			diag(
+				'warning',
+				'outside-system-folder',
+				`"${info.name}" belongs to system "${top.name}" but is outside ${folder}`,
+				info.loc
+			);
 		}
 	}
 

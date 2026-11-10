@@ -67,7 +67,11 @@ const KIND_LABEL: Record<ElementNode['data']['kind'], string> = {
 	component: 'Component',
 	external: 'External System',
 	datastore: 'Database',
-	queue: 'Queue'
+	queue: 'Queue',
+	module: 'Module',
+	model: 'Model',
+	class: 'Class',
+	interface: 'Interface'
 };
 
 export function elementMeta(kind: ElementNode['data']['kind'], technology?: string): string {
