@@ -81,8 +81,8 @@ describe('SVG renderer', () => {
 
 	it('uses theme tokens for colours', async () => {
 		const r = (await renderView(model, 'landscape', elk))!;
-		expect(renderedToSvg(r, 'light')).toContain('fill="#ffffff"');
-		expect(renderedToSvg(r, 'dark')).toContain('fill="#0d1117"');
+		expect(renderedToSvg(r, 'light')).toContain('fill="#f7f6f3"');
+		expect(renderedToSvg(r, 'dark')).toContain('fill="#141518"');
 	});
 
 	it('names exports after the view export file or id', () => {

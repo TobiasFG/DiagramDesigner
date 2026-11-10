@@ -204,6 +204,22 @@ describe('entity checks', () => {
 		expect(diagnostics.find((d) => d.code === 'unknown-field')!.line).toBe(7);
 	});
 
+	it('checks that field refs point at models', () => {
+		const { diagnostics } = loadStrings({
+			's/s.system.yaml': 'id: s\n',
+			's/a.model.yaml': [
+				'id: a',
+				'ownedBy: s',
+				'fields:',
+				'  - { name: self, type: uuid, ref: a }',
+				'  - { name: ghost, type: uuid, ref: nope }',
+				'  - { name: sys, type: uuid, ref: s }'
+			].join('\n')
+		});
+		expect(codes(diagnostics)).toEqual(['dangling-ref', 'not-a-model']);
+		expect(diagnostics.find((d) => d.code === 'not-a-model')!.line).toBe(6);
+	});
+
 	it('gives each system its own folder', () => {
 		const { diagnostics } = loadStrings({
 			'a/a.system.yaml': 'id: a\n',

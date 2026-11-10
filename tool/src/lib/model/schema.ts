@@ -99,7 +99,8 @@ export const ModelField = z
 		type: z.string(),
 		pk: z.boolean().optional().describe('Part of the primary key'),
 		pi: z.boolean().optional().describe('Part of the primary index'),
-		required: z.boolean().optional().describe('Must have a value; default optional')
+		required: z.boolean().optional().describe('Must have a value; default optional'),
+		ref: Id.optional().describe('Id of the model this field points at (foreign key)')
 	})
 	.describe('Model field (table column)');
 export type ModelField = z.infer<typeof ModelField>;

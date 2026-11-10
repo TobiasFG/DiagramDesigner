@@ -2,9 +2,9 @@ id: ahwod9ofrf
 ownedBy: d8mg4xc8ef
 name: Order Line
 fields:
-  - { name: orderId, type: uuid, pk: true, pi: true }
+  - { name: orderId, type: uuid, pk: true, pi: true, ref: llns90zy3d }
   - { name: lineNo, type: int, pk: true }
-  - { name: productId, type: uuid, required: true }
+  - { name: productId, type: uuid, required: true, ref: rksvyte4fo }
   - { name: quantity, type: decimal, required: true }
   - { name: unitPrice, type: decimal, required: true }
 indexes:

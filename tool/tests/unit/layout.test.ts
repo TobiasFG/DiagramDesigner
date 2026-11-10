@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { layoutLandscape } from '../../src/lib/landscape/layout';
+import { LEAF, layoutLandscape, modelLinks } from '../../src/lib/landscape/layout';
+import { textWidth } from '../../src/lib/render/text';
 import { createNodeElk } from '../../src/lib/layout/elk-node';
 import { layoutGraph } from '../../src/lib/layout/layout';
 import { formatLayout } from '../../src/lib/model/layout-format';
@@ -48,11 +49,16 @@ describe('landscape layout', () => {
 		}
 	});
 
-	it('gives siblings one cell size so a level lines up', () => {
+	it('fits each box to its content instead of sharing a size with its siblings', () => {
+		const leaves = boxes.filter((b) => !b.group && !b.table);
+		for (const b of leaves)
+			expect(b.width).toBe(
+				Math.max(LEAF.minWidth, textWidth(model.elements.get(b.id)!.name, LEAF.font, true) + 36)
+			);
 		const sizes = new Set(
 			model.elements.get('erp')!.childIds.map((id) => `${box(id).width}x${box(id).height}`)
 		);
-		expect(sizes.size).toBe(1);
+		expect(sizes.size).toBeGreaterThan(1);
 	});
 
 	it('is empty for an empty model', () => {
@@ -75,6 +81,43 @@ describe('landscape layout', () => {
 		expect([ref.parentId, ref.elementId, ref.ref, ref.group]).toEqual(['db', 'a', true, false]);
 		expect(owned.height).toBeGreaterThan(12 * 20);
 		expect(boxes.find((b) => b.id === 'db')!.group).toBe(true);
+	});
+
+	const tables = loadStrings({
+		's/s.system.yaml': 'id: s\n',
+		's/a.model.yaml': 'id: a\nownedBy: s\nfields: [{ name: id, type: uuid, pk: true }]\n',
+		's/b.model.yaml': [
+			'id: b',
+			'ownedBy: s',
+			'fields:',
+			...Array.from({ length: 8 }, (_, i) => `  - { name: f${i}, type: int }`),
+			'  - { name: aId, type: uuid, ref: a }',
+			'  - { name: up, type: uuid, ref: b }'
+		].join('\n'),
+		's/c.model.yaml': 'id: c\nownedBy: s\nfields: [{ name: x, type: int }]\n',
+		's/d.model.yaml': 'id: d\nownedBy: s\nfields: [{ name: aId, type: uuid, ref: a }]\n'
+	}).model;
+
+	it('packs a level of tables as a masonry, each table at its own size', () => {
+		const boxes = layoutLandscape(tables);
+		const box = (id: string) => boxes.find((b) => b.id === id)!;
+		// Columns: [a, c, d] and [b]; c and d fill in under the short a.
+		expect(box('a').height).toBeLessThan(box('b').height);
+		expect([box('c').absX, box('d').absX]).toEqual([box('a').absX, box('a').absX]);
+		expect(box('d').absY).toBeGreaterThan(box('c').absY);
+		expect(box('a').width).not.toBe(box('c').width);
+		const cards = boxes.filter((b) => b.table);
+		for (const x of cards) for (const y of cards) if (x !== y) expect(overlap(x, y)).toBe(false);
+	});
+
+	it('links field refs to sibling tables, facing each other', () => {
+		const links = modelLinks(tables, layoutLandscape(tables));
+		expect(links.map((l) => [l.id, l.target, l.sourceHandle, l.targetHandle])).toEqual([
+			['b.aId', 'a', 'aId:l', 'head:r'],
+			['b.up', 'b', 'up:r', 'head:r'],
+			// Stacked in one column, so joined round the right.
+			['d.aId', 'a', 'aId:r', 'head:r']
+		]);
 	});
 });
 

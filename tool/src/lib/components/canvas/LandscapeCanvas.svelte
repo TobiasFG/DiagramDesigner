@@ -3,16 +3,18 @@
 		Background,
 		BackgroundVariant,
 		Controls,
+		MarkerType,
 		SvelteFlow,
 		useSvelteFlow,
 		useViewport,
+		type Edge,
 		type Node
 	} from '@xyflow/svelte';
 	import '@xyflow/svelte/dist/style.css';
 	import { design } from '#lib/client/store.svelte.ts';
 	import { theme } from '#lib/client/theme.svelte.ts';
 	import type { ViewState } from '#lib/client/view-state.svelte.ts';
-	import { layoutLandscape } from '#lib/landscape/layout.ts';
+	import { layoutLandscape, modelLinks } from '#lib/landscape/layout.ts';
 	import LandscapeNode, { type LandscapeNodeData } from './LandscapeNode.svelte';
 
 	/** The whole model, fully expanded. It is laid out once; zooming only changes opacity. */
@@ -28,6 +30,7 @@
 	let cw = $state(1);
 	let ch = $state(1);
 	let nodes = $state.raw<Node[]>([]);
+	let edges = $state.raw<Edge[]>([]);
 	let fitted = false;
 
 	const boxes = $derived(layoutLandscape(design.model));
@@ -74,13 +77,49 @@
 					selected: sel.has(b.id),
 					owner: b.ref ? el(info.parentId ?? '')?.name : undefined,
 					fields: info.def.fields,
-					indexes: info.def.indexes
+					indexes: info.def.indexes,
+					table: b.table,
+					refNames: Object.fromEntries(
+						(info.def.fields ?? []).flatMap((f) => {
+							const name = f.ref && el(f.ref)?.name;
+							return name ? [[f.ref, name]] : [];
+						})
+					)
 				} satisfies LandscapeNodeData
+			};
+		});
+		// Lines fade with their box's children, through the same CSS variables as the nodes.
+		edges = modelLinks(design.model, boxes).map((l) => {
+			const parent = l.parentId ? boxes.find((p) => p.id === l.parentId) : undefined;
+			return {
+				...l,
+				// Svelte Flow adds this to the higher level of the two tables, so the line sits
+				// one level below them: under the tables, over their module.
+				zIndex: -1,
+				type: 'smoothstep',
+				pathOptions: { borderRadius: 0 },
+				class: 'model-link',
+				markerEnd: {
+					type: MarkerType.ArrowClosed,
+					width: 14,
+					height: 14,
+					color: 'var(--sdv-edge)'
+				},
+				domAttributes: {
+					style: `--pw:${parent?.width ?? 1e6};--ph:${parent?.height ?? 1e6}`
+				}
 			};
 		});
 		if (!fitted && boxes.length) {
 			fitted = true;
-			requestAnimationFrame(() => requestAnimationFrame(() => flow.fitView({ padding: 0.08 })));
+			// Systems differ in size, so cap the zoom where the largest one would start to open:
+			// the overview shows every system closed, none halfway through fading.
+			const roots = boxes.filter((b) => !b.parentId);
+			const maxZoom =
+				Math.min(...roots.map((b) => 0.5 * Math.min(cw / b.width, ch / b.height))) * 0.98;
+			requestAnimationFrame(() =>
+				requestAnimationFrame(() => flow.fitView({ padding: 0.08, maxZoom }))
+			);
 		}
 	});
 </script>
@@ -96,6 +135,7 @@
 >
 	<SvelteFlow
 		bind:nodes
+		{edges}
 		{nodeTypes}
 		colorMode={theme.current}
 		minZoom={0.05}
@@ -130,6 +170,14 @@
 		padding: 0;
 		border-radius: 0;
 		box-shadow: none;
+	}
+	.canvas :global(.svelte-flow__edge.model-link) {
+		--pf: max(calc(var(--pw) * var(--z) / var(--cw)), calc(var(--ph) * var(--z) / var(--ch)));
+		opacity: clamp(0, calc((var(--pf) - 0.55) / 0.15), 1);
+		pointer-events: none;
+	}
+	.canvas :global(.model-link .svelte-flow__edge-path) {
+		stroke: var(--sdv-edge);
 	}
 	.canvas :global(.svelte-flow__node.ghost) {
 		pointer-events: none;

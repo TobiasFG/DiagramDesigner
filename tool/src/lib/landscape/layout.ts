@@ -1,5 +1,5 @@
 import type { Model } from '../model/model';
-import type { Element } from '../model/schema';
+import type { Element, ModelField, ModelIndex } from '../model/schema';
 import { textWidth } from '../render/text';
 
 export interface LandscapeBox {
@@ -19,6 +19,8 @@ export interface LandscapeBox {
 	absY: number;
 	width: number;
 	height: number;
+	/** Column widths, for a model drawn as a table. */
+	table?: TableCols;
 }
 
 interface Size {
@@ -34,57 +36,163 @@ interface Item {
 	ref: boolean;
 }
 
-const LEAF: Size = { width: 220, height: 130 };
+/** A box without children: its name at a fixed size, the box fitted round it. */
+export const LEAF = { font: 15, padX: 18, height: 52, minWidth: 100 };
 const GAP = 32;
 const SYSTEM_GAP = 120;
 const PAD = 32;
 /** Room above the children for the open box's header. */
 const HEADER = 48;
 
-/** Model tables: font sizes, row height and padding, shared with LandscapeNode. */
-export const TABLE = { title: 15, note: 11, row: 13, rowHeight: 20, head: 46, pad: 10, gap: 8 };
+/** Model tables: font sizes and spacing in px, shared with LandscapeNode. */
+export const TABLE = {
+	title: 14,
+	note: 11,
+	/** Column labels in a table's header row. */
+	label: 11,
+	row: 13,
+	badge: 11,
+	rowHeight: 26,
+	/** Name bar above the tables. */
+	head: 48,
+	/** Side padding in every cell. */
+	pad: 10,
+	/** Space between two badges in a cell. */
+	badgeGap: 4
+};
 
-/** Text of a field row, without the key column. */
-export const fieldText = (f: NonNullable<Element['fields']>[number]) =>
-	`${f.name}: ${f.type}${f.required || f.pk ? '' : ' [0..1]'}`;
+export type FieldColumn = 'name' | 'type' | 'keys' | 'ref';
+export type IndexColumn = 'name' | 'fields' | 'kind';
 
-export const indexText = (ix: NonNullable<Element['indexes']>[number]) =>
-	`${ix.unique ? 'UX' : 'IX'} ${ix.name} (${ix.fields.join(', ')})`;
+export interface TableColumn<K> {
+	key: K;
+	label: string;
+	width: number;
+}
 
-/** Width of the PK/PI key column. */
-export const KEY_COL = 44;
+/** A model's two tables. A column only appears when some row has something in it. */
+export interface TableCols {
+	fields: TableColumn<FieldColumn>[];
+	indexes: TableColumn<IndexColumn>[];
+}
 
-/** Line above a model's name: its stereotype, plus the owner for a reference. */
-export const stereotype = (owner?: string) => (owner ? `«model» owned by ${owner}` : '«model»');
+export const keysOf = (f: ModelField) =>
+	[f.pk && 'Primary key', f.pi && 'Primary index'].filter((k) => k) as string[];
 
-function tableSize(name: string, def: Element, owner?: string): Size {
+/** Optional fields end in `?`. A primary key is always required. */
+export const typeText = (f: ModelField) => (f.required || f.pk ? f.type : `${f.type}?`);
+
+export const indexKind = (ix: ModelIndex) => (ix.unique ? 'Unique' : 'Index');
+
+/** Line under a model's name: its kind, plus the owner for a reference. */
+export const subtitle = (owner?: string) => (owner ? `Model · owned by ${owner}` : 'Model');
+
+/** Vertical centre of field row `i`: below the border, the name bar and the header row. */
+export const fieldRowY = (i: number) => 1 + TABLE.head + (i + 1.5) * TABLE.rowHeight;
+
+/** Badges have 6px side padding (see LandscapeNode). */
+const badgesWidth = (labels: string[]) =>
+	labels.reduce(
+		(w, k, i) => w + textWidth(k, TABLE.badge, true) + 12 + (i ? TABLE.badgeGap : 0),
+		0
+	);
+
+function columns<K>(defs: [K, string, number[]][]): TableColumn<K>[] {
+	return defs
+		.filter(([, , ws]) => ws.some((w) => w > 0))
+		.map(([key, label, ws]) => ({
+			key,
+			label,
+			width: Math.max(textWidth(label, TABLE.label, true), ...ws) + 2 * TABLE.pad
+		}));
+}
+
+function tableLayout(
+	name: string,
+	def: Element,
+	owner: string | undefined,
+	nameOf: (id: string) => string | undefined
+): { size: Size; cols: TableCols } {
 	const fields = def.fields ?? [];
 	const indexes = def.indexes ?? [];
+	const cols: TableCols = {
+		fields: columns<FieldColumn>([
+			['name', 'Field', fields.map((f) => textWidth(f.name, TABLE.row))],
+			['type', 'Type', fields.map((f) => textWidth(typeText(f), TABLE.row))],
+			['keys', 'Keys', fields.map((f) => badgesWidth(keysOf(f)))],
+			['ref', 'References', fields.map((f) => textWidth((f.ref && nameOf(f.ref)) || '', TABLE.row))]
+		]),
+		indexes: columns<IndexColumn>([
+			['name', 'Index', indexes.map((ix) => textWidth(ix.name, TABLE.row))],
+			['fields', 'Fields', indexes.map((ix) => textWidth(ix.fields.join(', '), TABLE.row))],
+			['kind', 'Kind', indexes.map((ix) => badgesWidth([indexKind(ix)]))]
+		])
+	};
+	const sum = (cs: { width: number }[]) => cs.reduce((w, c) => w + c.width, 0);
+	// The 2px is the card's border, which sits inside the box.
 	const width = Math.max(
-		LEAF.width,
 		textWidth(name, TABLE.title, true) + 2 * TABLE.pad,
-		textWidth(stereotype(owner), TABLE.note) + 2 * TABLE.pad,
-		...fields.map(
-			(f) => KEY_COL + textWidth(fieldText(f), TABLE.row, f.required || f.pk) + 2 * TABLE.pad
-		),
-		...indexes.map((ix) => textWidth(indexText(ix), TABLE.row) + 2 * TABLE.pad)
+		textWidth(subtitle(owner), TABLE.note) + 2 * TABLE.pad,
+		fields.length ? sum(cols.fields) : 0,
+		indexes.length ? sum(cols.indexes) : 0
 	);
-	const sections = (fields.length ? 1 : 0) + (indexes.length ? 1 : 0);
-	const height =
-		TABLE.head + (fields.length + indexes.length) * TABLE.rowHeight + sections * (TABLE.gap + 1);
-	return { width: Math.ceil(width), height: Math.max(LEAF.height, height) };
+	const rows = (n: number) => (n ? n + 1 : 0);
+	const height = TABLE.head + (rows(fields.length) + rows(indexes.length)) * TABLE.rowHeight;
+	return { size: { width: Math.ceil(width) + 2, height: height + 2 }, cols };
+}
+
+const leafSize = (name: string): Size => ({
+	width: Math.max(LEAF.minWidth, textWidth(name, LEAF.font, true) + 2 * LEAF.padX),
+	height: LEAF.height
+});
+
+/** Where a box goes within a block of siblings, relative to the block. */
+interface Slot {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+interface Block extends Size {
+	slots: Slot[];
+}
+
+/**
+ * Masonry: each box goes to the shortest column, in order, and keeps its own size. A column
+ * is as wide as its widest box; boxes are left-aligned in it.
+ */
+function masonry(sizes: Size[], cols: number, gap: number): Block {
+	const columns: number[][] = Array.from({ length: cols }, () => []);
+	const heights: number[] = Array(cols).fill(-gap);
+	sizes.forEach((s, i) => {
+		const c = heights.indexOf(Math.min(...heights));
+		columns[c].push(i);
+		heights[c] += gap + s.height;
+	});
+	const slots: Slot[] = [];
+	let x = 0;
+	for (const column of columns) {
+		const width = Math.max(...column.map((i) => sizes[i].width));
+		let y = 0;
+		for (const i of column) {
+			slots[i] = { x, y, ...sizes[i] };
+			y += sizes[i].height + gap;
+		}
+		x += width + gap;
+	}
+	return { width: x - gap, height: Math.max(...heights), slots };
 }
 
 /**
  * Lays out the whole element tree: top-level elements in one row (file order, so upstream
- * systems come first), children in a near-square grid. Siblings share one cell size so boxes
- * on a level line up; a grid smaller than its box is centred in it, and so is an incomplete
- * last row. Parents precede their
- * children in the result, as Svelte Flow requires.
+ * systems come first), children in a near-square masonry. Every box is fitted to its content.
+ * Parents precede their children in the result, as Svelte Flow requires.
  */
 export function layoutLandscape(model: Model): LandscapeBox[] {
 	const out: LandscapeBox[] = [];
 	const sizes = new Map<string, Size>();
+	const tables = new Map<string, TableCols>();
 	// A reference is drawn as a closed box, so it never has boxes inside.
 	const kidsOf = (item: Item): Item[] => {
 		const info = model.elements.get(item.el);
@@ -95,19 +203,8 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 		];
 	};
 	const colsFor = (n: number) => Math.ceil(Math.sqrt(n));
-
-	const grid = (items: Item[], cols: number, gap: number) => {
-		const cell = {
-			width: Math.max(...items.map((it) => measure(it).width)),
-			height: Math.max(...items.map((it) => measure(it).height))
-		};
-		const rows = Math.ceil(items.length / cols);
-		return {
-			cell,
-			width: cols * cell.width + (cols - 1) * gap,
-			height: rows * cell.height + (rows - 1) * gap
-		};
-	};
+	const arrange = (items: Item[], cols: number, gap: number) =>
+		masonry(items.map(measure), cols, gap);
 
 	function measure(item: Item): Size {
 		let size = sizes.get(item.id);
@@ -115,12 +212,14 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 		const kids = kidsOf(item);
 		const info = model.elements.get(item.el);
 		if (kids.length) {
-			const g = grid(kids, colsFor(kids.length), GAP);
-			size = { width: g.width + 2 * PAD, height: g.height + HEADER + PAD };
+			const b = arrange(kids, colsFor(kids.length), GAP);
+			size = { width: b.width + 2 * PAD, height: b.height + HEADER + PAD };
 		} else if (info?.def.kind === 'model') {
 			const owner = item.ref ? model.elements.get(info.parentId ?? '')?.name : undefined;
-			size = tableSize(info.name, info.def, owner);
-		} else size = LEAF;
+			const t = tableLayout(info.name, info.def, owner, (id) => model.elements.get(id)?.name);
+			tables.set(item.id, t.cols);
+			size = t.size;
+		} else size = leafSize(info?.name ?? item.el);
 		sizes.set(item.id, size);
 		return size;
 	}
@@ -132,16 +231,13 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 		area: Size & { x: number; y: number },
 		parent?: LandscapeBox
 	) {
-		const g = grid(items, cols, gap);
-		const x0 = area.x + (area.width - g.width) / 2;
-		const y0 = area.y + (area.height - g.height) / 2;
-		const lastRow = items.length - (items.length % cols || cols);
+		const block = arrange(items, cols, gap);
+		const x0 = area.x + (area.width - block.width) / 2;
+		const y0 = area.y + (area.height - block.height) / 2;
 		items.forEach((item, i) => {
-			// An incomplete last row is centred under the full rows.
-			const shift =
-				i >= lastRow ? ((cols - (items.length - lastRow)) * (g.cell.width + gap)) / 2 : 0;
-			const absX = x0 + shift + (i % cols) * (g.cell.width + gap);
-			const absY = y0 + Math.floor(i / cols) * (g.cell.height + gap);
+			const slot = block.slots[i];
+			const absX = x0 + slot.x;
+			const absY = y0 + slot.y;
 			const kids = kidsOf(item);
 			const box: LandscapeBox = {
 				id: item.id,
@@ -153,7 +249,9 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 				y: absY - (parent?.absY ?? 0),
 				absX,
 				absY,
-				...g.cell
+				width: slot.width,
+				height: slot.height,
+				table: tables.get(item.id)
 			};
 			out.push(box);
 			if (kids.length)
@@ -164,8 +262,8 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 					{
 						x: absX + PAD,
 						y: absY + HEADER,
-						width: g.cell.width - 2 * PAD,
-						height: g.cell.height - HEADER - PAD
+						width: slot.width - 2 * PAD,
+						height: slot.height - HEADER - PAD
 					},
 					box
 				);
@@ -174,8 +272,48 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 
 	const roots = model.rootElementIds.map((id) => ({ id, el: id, ref: false }));
 	if (roots.length) {
-		const g = grid(roots, roots.length, SYSTEM_GAP);
-		place(roots, roots.length, SYSTEM_GAP, { x: 0, y: 0, ...g });
+		const b = arrange(roots, roots.length, SYSTEM_GAP);
+		place(roots, roots.length, SYSTEM_GAP, { x: 0, y: 0, ...b });
+	}
+	return out;
+}
+
+/** A foreign key drawn as a line from the field's row to the referenced table. */
+export interface ModelLink {
+	id: string;
+	source: string;
+	target: string;
+	/** `<field>:l` or `<field>:r`. */
+	sourceHandle: string;
+	/** `head:l` or `head:r`. */
+	targetHandle: string;
+	parentId?: string;
+}
+
+/**
+ * Lines for field refs whose target table sits in the same box, so they never cross a
+ * boundary; other refs show only as text in the row. The ends face each other, and tables
+ * stacked in one column (or a table referring to itself) are joined round the right side.
+ */
+export function modelLinks(model: Model, boxes: LandscapeBox[]): ModelLink[] {
+	const out: ModelLink[] = [];
+	for (const b of boxes) {
+		if (!b.table) continue;
+		for (const f of model.elements.get(b.elementId)?.def.fields ?? []) {
+			const t =
+				f.ref && boxes.find((o) => o.table && o.parentId === b.parentId && o.elementId === f.ref);
+			if (!t) continue;
+			const [from, to] =
+				t.absX >= b.absX + b.width ? 'rl' : t.absX + t.width <= b.absX ? 'lr' : 'rr';
+			out.push({
+				id: `${b.id}.${f.name}`,
+				source: b.id,
+				target: t.id,
+				sourceHandle: `${f.name}:${from}`,
+				targetHandle: `head:${to}`,
+				parentId: b.parentId
+			});
+		}
 	}
 	return out;
 }

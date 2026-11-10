@@ -5,7 +5,7 @@ fields:
   - { name: id, type: uuid, pk: true }
   - { name: slug, type: string, pi: true, required: true }
   - { name: name, type: string, required: true }
-  - { name: parentId, type: uuid }
+  - { name: parentId, type: uuid, ref: pk5eh2ufzk }
 indexes:
   - { name: ux_category_slug, fields: [slug], unique: true }
   - { name: ix_category_parent, fields: [parentId] }

@@ -91,7 +91,7 @@ describe('sdv export', () => {
 			).code
 		).toBe(0);
 		expect(readdirSync(out)).toEqual(['landscape.svg']);
-		expect(readFileSync(path.join(out, 'landscape.svg'), 'utf8')).toContain('#0d1117');
+		expect(readFileSync(path.join(out, 'landscape.svg'), 'utf8')).toContain('#141518');
 		expect((await sdv(dir, 'export', '--view', 'nope')).code).toBe(2);
 		expect((await sdv(dir, 'export', '--format', 'gif')).code).toBe(2);
 		writeFileSync(path.join(dir, 'design/model/erp/broken.module.yaml'), 'id: x\nparent: ghost\n');

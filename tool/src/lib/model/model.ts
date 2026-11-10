@@ -297,6 +297,27 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 		}
 	}
 	for (const info of entities) {
+		info.def.fields?.forEach((f, i) => {
+			if (!f.ref) return;
+			const target = model.elements.get(f.ref);
+			const refLoc = at(info.loc, 'fields', i);
+			if (!target)
+				diag(
+					'error',
+					'dangling-ref',
+					`field "${f.name}" refers to unknown "${f.ref}"`,
+					refLoc,
+					'ref'
+				);
+			else if (target.def.kind !== 'model')
+				diag(
+					'error',
+					'not-a-model',
+					`field "${f.name}" refers to ${target.def.kind} "${target.name}", not a model`,
+					refLoc,
+					'ref'
+				);
+		});
 		info.refIds = info.refIds.filter((ref, i) => {
 			const target = model.elements.get(ref);
 			const refLoc = at(info.loc, 'models', i);

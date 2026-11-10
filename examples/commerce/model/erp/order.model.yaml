@@ -4,7 +4,7 @@ name: Order
 fields:
   - { name: id, type: uuid, pk: true }
   - { name: orderNo, type: string, pi: true, required: true }
-  - { name: customerId, type: uuid, required: true }
+  - { name: customerId, type: uuid, required: true, ref: li65oa3wga }
   - { name: status, type: string, required: true }
   - { name: placedAt, type: datetime, required: true }
   - { name: total, type: decimal, required: true }

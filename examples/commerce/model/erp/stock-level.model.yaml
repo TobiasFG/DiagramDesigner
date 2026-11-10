@@ -2,7 +2,7 @@ id: z507p6fu7v
 ownedBy: up28wl6i9p
 name: Stock Level
 fields:
-  - { name: productId, type: uuid, pk: true, pi: true }
+  - { name: productId, type: uuid, pk: true, pi: true, ref: rksvyte4fo }
   - { name: warehouse, type: string, pk: true }
   - { name: onHand, type: decimal, required: true }
   - { name: reserved, type: decimal, required: true }

@@ -3,7 +3,7 @@ ownedBy: tz83lkox5o
 name: Price
 fields:
   - { name: id, type: uuid, pk: true }
-  - { name: productId, type: uuid, pi: true, required: true }
+  - { name: productId, type: uuid, pi: true, required: true, ref: rksvyte4fo }
   - { name: currency, type: string, required: true }
   - { name: amount, type: decimal, required: true }
   - { name: validFrom, type: date, required: true }

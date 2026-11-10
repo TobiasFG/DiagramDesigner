@@ -49,6 +49,11 @@
           "required": {
             "description": "Must have a value; default optional",
             "type": "boolean"
+          },
+          "ref": {
+            "description": "Id of the model this field points at (foreign key)",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
           }
         },
         "required": [
