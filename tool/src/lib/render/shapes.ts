@@ -70,9 +70,7 @@ const KIND_LABEL: Record<ElementNode['data']['kind'], string> = {
 	queue: 'Queue',
 	module: 'Module',
 	model: 'Model',
-	class: 'Class',
-	interface: 'Interface',
-	method: 'Method',
+	'logic-unit': 'Logic Unit',
 	api: 'API'
 };
 

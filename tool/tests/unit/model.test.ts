@@ -13,7 +13,7 @@ describe('fixture design', () => {
 		expect(model.rootElementIds).toEqual(['erp', 'webshop']);
 		expect(model.elements.get('erp')!.childIds).toEqual(['inventory', 'order-api', 'orders']);
 		const place = model.elements.get('place')!;
-		expect([place.parentId, place.depth, place.def.kind]).toEqual(['order', 3, 'method']);
+		expect([place.parentId, place.depth, place.def.kind]).toEqual(['order', 3, 'logic-unit']);
 		expect(model.elements.get('order-api')!.def).toMatchObject({ kind: 'api' });
 	});
 
@@ -146,14 +146,14 @@ describe('entity checks', () => {
 		const { model, diagnostics } = loadStrings({
 			's/s.system.yaml': 'id: s\n',
 			's/m.module.yaml': 'id: m\nparent: s\n',
-			's/x.method.yaml': 'id: x\nparent: s\n',
+			's/x.logic-unit.yaml': 'id: x\nparent: s\n',
 			's/g.module.yaml': 'id: g\nparent: ghost\n',
-			's/p.class.yaml': 'id: p\nparent: q\n',
-			's/q.class.yaml': 'id: q\nparent: p\n'
+			's/p.module.yaml': 'id: p\nparent: q\n',
+			's/q.module.yaml': 'id: q\nparent: p\n'
 		});
 		expect(codes(diagnostics)).toEqual(['dangling-ref', 'parent-cycle', 'parent-kind']);
 		expect(diagnostics.find((d) => d.code === 'parent-kind')!.message).toBe(
-			'method cannot have a system as parent; allowed: module, class, interface'
+			'logic-unit cannot have a system as parent; allowed: module'
 		);
 		// Entities with a dangling or looping parent become roots so the canvas still shows them.
 		expect(model.rootElementIds).toEqual(['g', 'p', 's']);

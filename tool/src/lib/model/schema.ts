@@ -81,20 +81,12 @@ export const Relationship = z.strictObject({
 export type Relationship = z.infer<typeof Relationship>;
 
 /** Kinds an entity file can have; the file name `<name>.<kind>.yaml` gives it. */
-export const ENTITY_KINDS = [
-	'system',
-	'module',
-	'model',
-	'class',
-	'interface',
-	'method',
-	'api'
-] as const;
+export const ENTITY_KINDS = ['system', 'module', 'model', 'logic-unit', 'api'] as const;
 export type EntityFileKind = (typeof ENTITY_KINDS)[number];
 
 /** Kinds a parent must have, for kinds that may only sit under certain parents. */
 export const PARENT_KINDS: Partial<Record<EntityFileKind, EntityFileKind[]>> = {
-	method: ['module', 'class', 'interface'],
+	'logic-unit': ['module'],
 	api: ['system', 'module']
 };
 
