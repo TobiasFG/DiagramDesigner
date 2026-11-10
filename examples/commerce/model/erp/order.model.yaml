@@ -1,0 +1,14 @@
+id: llns90zy3d
+ownedBy: d8mg4xc8ef
+name: Order
+fields:
+  - { name: id, type: uuid, pk: true }
+  - { name: orderNo, type: string, pi: true, required: true }
+  - { name: customerId, type: uuid, required: true }
+  - { name: status, type: string, required: true }
+  - { name: placedAt, type: datetime, required: true }
+  - { name: total, type: decimal, required: true }
+  - { name: note, type: string }
+indexes:
+  - { name: ux_order_no, fields: [orderNo], unique: true }
+  - { name: ix_order_customer, fields: [customerId, placedAt] }

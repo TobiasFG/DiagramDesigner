@@ -9,7 +9,8 @@ const HELP = `sdv — System Design Viewer CLI
 Usage:
   sdv validate                 schema + reference checks; exit 1 on errors
   sdv new <name.kind.yaml> [--parent id]
-                               create an entity file with a generated id
+                               create an entity file with a generated id;
+                               --parent is written as ownedBy for models
   sdv export [--view id]... [--format mermaid,svg,png] [--out dir] [--theme light|dark]
   sdv export --check           exit 1 if committed exports differ from fresh ones
   sdv md-sync <file.md>...     refresh <!-- sdv:view ... --> regions in Markdown

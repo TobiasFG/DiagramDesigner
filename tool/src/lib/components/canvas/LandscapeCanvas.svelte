@@ -40,7 +40,7 @@
 	const openKey = $derived.by(() => {
 		const z = viewport.current.zoom;
 		return boxes
-			.filter((b) => el(b.id)?.childIds.length && fillOf(b, z) >= OPEN)
+			.filter((b) => b.group && fillOf(b, z) >= OPEN)
 			.map((b) => b.id)
 			.join(',');
 	});
@@ -49,7 +49,7 @@
 	$effect(() => {
 		const sel = new Set(view.selectedNodes);
 		nodes = boxes.map((b) => {
-			const info = el(b.id)!;
+			const info = el(b.elementId)!;
 			const parent = b.parentId ? boxes.find((p) => p.id === b.parentId) : undefined;
 			return {
 				id: b.id,
@@ -70,8 +70,11 @@
 				data: {
 					name: info.name,
 					kind: info.def.kind,
-					group: info.childIds.length > 0,
-					selected: sel.has(b.id)
+					group: b.group,
+					selected: sel.has(b.id),
+					owner: b.ref ? el(info.parentId ?? '')?.name : undefined,
+					fields: info.def.fields,
+					indexes: info.def.indexes
 				} satisfies LandscapeNodeData
 			};
 		});

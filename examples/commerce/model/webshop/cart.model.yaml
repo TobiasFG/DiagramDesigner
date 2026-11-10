@@ -1,0 +1,10 @@
+id: uzi5stl672
+ownedBy: xmv85uqqsk
+name: Cart
+fields:
+  - { name: id, type: uuid, pk: true }
+  - { name: sessionId, type: string, pi: true, required: true }
+  - { name: customerId, type: uuid }
+  - { name: createdAt, type: datetime, required: true }
+indexes:
+  - { name: ix_cart_customer, fields: [customerId] }

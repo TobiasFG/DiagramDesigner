@@ -1,0 +1,11 @@
+id: ahwod9ofrf
+ownedBy: d8mg4xc8ef
+name: Order Line
+fields:
+  - { name: orderId, type: uuid, pk: true, pi: true }
+  - { name: lineNo, type: int, pk: true }
+  - { name: productId, type: uuid, required: true }
+  - { name: quantity, type: decimal, required: true }
+  - { name: unitPrice, type: decimal, required: true }
+indexes:
+  - { name: ix_order_line_product, fields: [productId] }

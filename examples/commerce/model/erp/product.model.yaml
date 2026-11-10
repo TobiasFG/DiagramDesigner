@@ -1,0 +1,11 @@
+id: rksvyte4fo
+ownedBy: ywl0a6j1ev
+name: Product
+fields:
+  - { name: id, type: uuid, pk: true }
+  - { name: sku, type: string, pi: true, required: true }
+  - { name: name, type: string, required: true }
+  - { name: unit, type: string, required: true }
+  - { name: discontinuedAt, type: date }
+indexes:
+  - { name: ux_product_sku, fields: [sku], unique: true }

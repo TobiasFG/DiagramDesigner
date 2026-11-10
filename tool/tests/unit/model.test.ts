@@ -134,6 +134,76 @@ describe('entity checks', () => {
 		expect(codes(diagnostics)).toEqual(['missing-parent', 'system-parent']);
 	});
 
+	it('places models under the single entity in ownedBy', () => {
+		const { model, diagnostics } = loadStrings({
+			's/s.system.yaml': 'id: s\n',
+			's/m.module.yaml': 'id: m\nparent: s\n',
+			's/a.model.yaml': 'id: a\nownedBy: m\n',
+			's/b.model.yaml': 'id: b\nownedBy: s\n'
+		});
+		expect(diagnostics).toEqual([]);
+		expect(model.elements.get('m')!.childIds).toEqual(['a']);
+		expect(model.elements.get('s')!.childIds).toEqual(['b', 'm']);
+		expect(model.elements.get('a')!.depth).toBe(2);
+	});
+
+	it('requires ownedBy instead of parent on models only', () => {
+		const { diagnostics } = loadStrings({
+			's/s.system.yaml': 'id: s\n',
+			's/m.module.yaml': 'id: m\nparent: s\nownedBy: s\n',
+			's/a.model.yaml': 'id: a\nparent: s\n',
+			's/u.logic-unit.yaml': 'id: u\nparent: m\n',
+			's/b.model.yaml': 'id: b\nownedBy: u\n',
+			's/c.model.yaml': 'id: c\nownedBy: [s, m]\n'
+		});
+		expect(codes(diagnostics)).toEqual([
+			'missing-owner',
+			'model-parent',
+			'owned-by',
+			'parent-kind',
+			'schema'
+		]);
+		expect(diagnostics.find((d) => d.code === 'parent-kind')!.message).toBe(
+			'model cannot have a logic-unit as ownedBy; allowed: system, module'
+		);
+	});
+
+	it('keeps valid model references and reports the rest', () => {
+		const { model, diagnostics } = loadStrings({
+			's/s.system.yaml': 'id: s\n',
+			's/m.module.yaml': 'id: m\nparent: s\n',
+			's/a.model.yaml': 'id: a\nownedBy: m\n',
+			's/db.module.yaml': 'id: db\nparent: s\nmodels: [a, ghost, m]\n',
+			's/own.module.yaml': 'id: own\nparent: s\nmodels: [b]\n',
+			's/b.model.yaml': 'id: b\nownedBy: own\nmodels: [a]\n'
+		});
+		expect(codes(diagnostics)).toEqual([
+			'dangling-ref',
+			'model-only',
+			'not-a-model',
+			'own-model-ref'
+		]);
+		expect(model.elements.get('db')!.refIds).toEqual(['a']);
+		expect(model.elements.get('a')!.parentId).toBe('m');
+	});
+
+	it('checks model fields and indexes', () => {
+		const { diagnostics } = loadStrings({
+			's/s.system.yaml': 'id: s\nfields: [{ name: x, type: int }]\n',
+			's/a.model.yaml': [
+				'id: a',
+				'ownedBy: s',
+				'fields:',
+				'  - { name: id, type: uuid, pk: true, pi: true }',
+				'  - { name: id, type: int, required: true }',
+				'indexes:',
+				'  - { name: ix, fields: [id, nope], unique: true }'
+			].join('\n')
+		});
+		expect(codes(diagnostics)).toEqual(['duplicate-field', 'model-only', 'unknown-field']);
+		expect(diagnostics.find((d) => d.code === 'unknown-field')!.line).toBe(7);
+	});
+
 	it('gives each system its own folder', () => {
 		const { diagnostics } = loadStrings({
 			'a/a.system.yaml': 'id: a\n',

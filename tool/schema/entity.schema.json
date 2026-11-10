@@ -8,9 +8,84 @@
       "description": "Generated with `sdv new`; never edited"
     },
     "parent": {
-      "description": "Id of the parent entity; omitted only for systems",
+      "description": "Id of the parent entity; omitted for systems and models",
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "ownedBy": {
+      "description": "Models only: id of the one system or module owning it",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "models": {
+      "description": "Ids of models used here but owned elsewhere; drawn inside as references",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$",
+        "description": "Kebab-case identifier"
+      }
+    },
+    "fields": {
+      "description": "Models only",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "pk": {
+            "description": "Part of the primary key",
+            "type": "boolean"
+          },
+          "pi": {
+            "description": "Part of the primary index",
+            "type": "boolean"
+          },
+          "required": {
+            "description": "Must have a value; default optional",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "additionalProperties": false,
+        "description": "Model field (table column)"
+      }
+    },
+    "indexes": {
+      "description": "Models only",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "fields": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unique": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "fields"
+        ],
+        "additionalProperties": false,
+        "description": "Secondary index over model fields"
+      }
     },
     "name": {
       "description": "Display name; defaults to the file name",

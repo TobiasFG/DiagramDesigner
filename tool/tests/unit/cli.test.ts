@@ -181,6 +181,10 @@ describe('sdv schema', () => {
 		expect(Object.keys(entity.properties)).toEqual([
 			'id',
 			'parent',
+			'ownedBy',
+			'models',
+			'fields',
+			'indexes',
 			'name',
 			'tags',
 			'links',

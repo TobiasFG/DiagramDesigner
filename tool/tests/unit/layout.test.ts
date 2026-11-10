@@ -58,6 +58,24 @@ describe('landscape layout', () => {
 	it('is empty for an empty model', () => {
 		expect(layoutLandscape(loadStrings({}).model)).toEqual([]);
 	});
+
+	it('draws a referenced model inside the referencing entity too, sized as a table', () => {
+		const fields = Array.from({ length: 12 }, (_, i) => `  - { name: f${i}, type: int }`);
+		const boxes = layoutLandscape(
+			loadStrings({
+				's/s.system.yaml': 'id: s\n',
+				's/m.module.yaml': 'id: m\nparent: s\n',
+				's/db.module.yaml': 'id: db\nparent: s\nmodels: [a]\n',
+				's/a.model.yaml': ['id: a', 'ownedBy: m', 'fields:', ...fields].join('\n')
+			}).model
+		);
+		const owned = boxes.find((b) => b.id === 'a')!;
+		const ref = boxes.find((b) => b.id === 'db>a')!;
+		expect([owned.parentId, owned.ref]).toEqual(['m', false]);
+		expect([ref.parentId, ref.elementId, ref.ref, ref.group]).toEqual(['db', 'a', true, false]);
+		expect(owned.height).toBeGreaterThan(12 * 20);
+		expect(boxes.find((b) => b.id === 'db')!.group).toBe(true);
+	});
 });
 
 describe('ELK layout', () => {

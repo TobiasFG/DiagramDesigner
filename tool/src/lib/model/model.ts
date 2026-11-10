@@ -40,6 +40,8 @@ export interface ElementInfo extends Selectable {
 	name: string;
 	parentId?: string;
 	childIds: string[];
+	/** Models owned elsewhere that are drawn inside this entity as references. */
+	refIds: string[];
 	/** 0 for top-level elements. */
 	depth: number;
 	loc: Loc;
@@ -239,15 +241,16 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 			continue;
 		}
 		if (!claim(value.id, 'element', loc)) continue;
-		const { parent, ...rest } = value;
+		const { parent, ownedBy, models, ...rest } = value;
 		const base = file.slice(file.lastIndexOf('/') + 1).split('.')[0];
 		const info: ElementInfo = {
 			id: value.id,
 			def: { ...rest, kind },
 			name: value.name ?? base,
 			tags: value.tags,
-			parentId: parent,
+			parentId: kind === 'model' ? ownedBy : parent,
 			childIds: [],
+			refIds: models ?? [],
 			depth: 0,
 			loc
 		};
@@ -255,18 +258,70 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 		entities.push(info);
 		if (kind === 'system' && parent)
 			diag('error', 'system-parent', `system "${info.name}" cannot have a parent`, loc, 'parent');
-		if (kind !== 'system' && !parent)
+		if (kind === 'model' && parent)
+			diag('error', 'model-parent', `model "${info.name}" uses ownedBy, not parent`, loc, 'parent');
+		if (kind !== 'model' && ownedBy)
+			diag('error', 'owned-by', `only models have ownedBy`, loc, 'ownedBy');
+		if (kind === 'model' && !ownedBy)
+			diag('error', 'missing-owner', `model "${info.name}" needs ownedBy`, loc, 'id');
+		if (kind !== 'system' && kind !== 'model' && !parent)
 			diag('error', 'missing-parent', `${kind} "${info.name}" needs a parent`, loc, 'id');
+		if (kind === 'model') {
+			if (models) diag('error', 'model-only', `a model cannot list models`, loc, 'models');
+			const names = new Set<string>();
+			value.fields?.forEach((f, i) => {
+				if (names.has(f.name))
+					diag(
+						'error',
+						'duplicate-field',
+						`field "${f.name}" is defined twice`,
+						at(loc, 'fields', i),
+						'name'
+					);
+				names.add(f.name);
+			});
+			value.indexes?.forEach((ix, i) =>
+				ix.fields.forEach((f, j) => {
+					if (!names.has(f))
+						diag(
+							'error',
+							'unknown-field',
+							`index "${ix.name}" uses unknown field "${f}"`,
+							at(loc, 'indexes', i, 'fields', j)
+						);
+				})
+			);
+		} else {
+			for (const key of ['fields', 'indexes'] as const)
+				if (value[key]) diag('error', 'model-only', `only models have ${key}`, loc, key);
+		}
 	}
 	for (const info of entities) {
+		info.refIds = info.refIds.filter((ref, i) => {
+			const target = model.elements.get(ref);
+			const refLoc = at(info.loc, 'models', i);
+			if (!target) diag('error', 'dangling-ref', `model "${ref}" is not an entity`, refLoc);
+			else if (target.def.kind !== 'model')
+				diag(
+					'error',
+					'not-a-model',
+					`"${target.name}" is a ${target.def.kind}, not a model`,
+					refLoc
+				);
+			else if (target.parentId === info.id)
+				diag('warning', 'own-model-ref', `"${target.name}" is already owned here`, refLoc);
+			else return true;
+			return false;
+		});
 		if (!info.parentId) continue;
+		const field = info.def.kind === 'model' ? 'ownedBy' : 'parent';
 		if (!model.elements.has(info.parentId)) {
 			diag(
 				'error',
 				'dangling-ref',
-				`parent "${info.parentId}" is not an entity`,
+				`${field} "${info.parentId}" is not an entity`,
 				info.loc,
-				'parent'
+				field
 			);
 			info.parentId = undefined;
 			continue;
@@ -277,9 +332,9 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 			diag(
 				'error',
 				'parent-kind',
-				`${info.def.kind} cannot have a ${parentKind} as parent; allowed: ${allowed.join(', ')}`,
+				`${info.def.kind} cannot have a ${parentKind} as ${field}; allowed: ${allowed.join(', ')}`,
 				info.loc,
-				'parent'
+				field
 			);
 		const seen = new Set([info.id]);
 		let cur: string | undefined = info.parentId;
@@ -288,7 +343,7 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 			cur = model.elements.get(cur)?.parentId;
 		}
 		if (cur === info.id) {
-			diag('error', 'parent-cycle', `parent chain of "${info.name}" loops`, info.loc, 'parent');
+			diag('error', 'parent-cycle', `parent chain of "${info.name}" loops`, info.loc, field);
 			info.parentId = undefined;
 		}
 	}

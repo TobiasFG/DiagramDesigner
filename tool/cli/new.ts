@@ -33,7 +33,7 @@ export async function runNew(
 		return 1;
 	}
 	const lines = [`id: ${generateId()}`];
-	if (parent) lines.push(`parent: ${parent}`);
+	if (parent) lines.push(`${kind === 'model' ? 'ownedBy' : 'parent'}: ${parent}`);
 	lines.push(`name: ${path.basename(file).split('.')[0]}`);
 	await fs.mkdir(path.dirname(abs), { recursive: true });
 	await fs.writeFile(abs, lines.join('\n') + '\n');

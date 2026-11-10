@@ -52,6 +52,8 @@ export interface Element {
 	links?: { label: string; url: string }[];
 	meta?: Record<string, string>;
 	children?: Element[];
+	fields?: ModelField[];
+	indexes?: ModelIndex[];
 }
 
 export const Element: z.ZodType<Element> = z
@@ -87,18 +89,47 @@ export type EntityFileKind = (typeof ENTITY_KINDS)[number];
 /** Kinds a parent must have, for kinds that may only sit under certain parents. */
 export const PARENT_KINDS: Partial<Record<EntityFileKind, EntityFileKind[]>> = {
 	'logic-unit': ['module'],
-	api: ['system', 'module']
+	api: ['system', 'module'],
+	model: ['system', 'module']
 };
+
+export const ModelField = z
+	.strictObject({
+		name: z.string(),
+		type: z.string(),
+		pk: z.boolean().optional().describe('Part of the primary key'),
+		pi: z.boolean().optional().describe('Part of the primary index'),
+		required: z.boolean().optional().describe('Must have a value; default optional')
+	})
+	.describe('Model field (table column)');
+export type ModelField = z.infer<typeof ModelField>;
+
+export const ModelIndex = z
+	.strictObject({
+		name: z.string(),
+		fields: z.array(z.string()).min(1),
+		unique: z.boolean().optional()
+	})
+	.describe('Secondary index over model fields');
+export type ModelIndex = z.infer<typeof ModelIndex>;
 
 /**
  * One entity per file, named `<name>.<kind>.yaml`. The id is generated once and never
  * edited, so renaming or moving the file changes nothing. Systems sit in their own folder
- * and have no parent; every other entity names its parent by id.
+ * and have no parent; models name their single owner with `ownedBy` instead of a parent,
+ * since they are used in many places; every other entity names its parent by id.
  */
 export const EntityFile = z
 	.strictObject({
 		id: Id.describe('Generated with `sdv new`; never edited'),
-		parent: Id.optional().describe('Id of the parent entity; omitted only for systems'),
+		parent: Id.optional().describe('Id of the parent entity; omitted for systems and models'),
+		ownedBy: Id.optional().describe('Models only: id of the one system or module owning it'),
+		models: z
+			.array(Id)
+			.optional()
+			.describe('Ids of models used here but owned elsewhere; drawn inside as references'),
+		fields: z.array(ModelField).optional().describe('Models only'),
+		indexes: z.array(ModelIndex).optional().describe('Models only'),
 		name: Text.optional().describe('Display name; defaults to the file name'),
 		tags: z.array(z.string()).optional(),
 		links: z.array(DocLink).optional(),

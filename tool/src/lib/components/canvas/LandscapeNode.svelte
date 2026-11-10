@@ -4,16 +4,25 @@
 		kind: string;
 		group: boolean;
 		selected: boolean;
+		/** Owner's name when the box is a reference to a model owned elsewhere. */
+		owner?: string;
+		fields?: ModelField[];
+		indexes?: ModelIndex[];
 	}
 </script>
 
 <script lang="ts">
 	import type { NodeProps } from '@xyflow/svelte';
+	import type { ModelField, ModelIndex } from '#lib/model/schema.ts';
+	import { fieldText, indexText, KEY_COL, stereotype, TABLE } from '#lib/landscape/layout.ts';
 
 	let { data, width = 0, height = 0 }: NodeProps = $props();
 	const d = $derived(data as LandscapeNodeData);
-	// The closed face scales with the box, so a system reads the same at any size.
-	const font = $derived(Math.min(width * 0.085, height * 0.2, d.group ? 999 : 15));
+	// The closed face scales with the box, so a system reads the same at any size. Siblings
+	// share one box size, so their names come out the same size too.
+	const font = $derived(Math.min(width * 0.085, height * 0.2));
+	const table = $derived(d.kind === 'model' && !d.group);
+	const keys = (f: ModelField) => [f.pk && 'PK', f.pi && 'PI'].filter(Boolean).join(' ');
 </script>
 
 <!-- Opacity comes from CSS variables set on the canvas (--z, --cw, --ch) and on the node
@@ -30,9 +39,41 @@
 	{#if d.group}
 		<div class="header">{d.name}</div>
 	{/if}
-	<div class="face" style:font-size="{font}px">
-		<div class="name">{d.name}</div>
-	</div>
+	{#if table}
+		<div
+			class="face table"
+			class:ref={d.owner}
+			style:--pad="{TABLE.pad}px"
+			style:--row="{TABLE.rowHeight}px"
+			style:--gap="{TABLE.gap}px"
+			style:--key="{KEY_COL}px"
+		>
+			<div class="thead" style:height="{TABLE.head}px">
+				<div class="note" style:font-size="{TABLE.note}px">{stereotype(d.owner)}</div>
+				<div class="name" style:font-size="{TABLE.title}px">{d.name}</div>
+			</div>
+			{#if d.fields?.length}
+				<div class="rows" style:font-size="{TABLE.row}px">
+					{#each d.fields as f (f.name)}
+						<div class="row" class:req={f.required || f.pk}>
+							<span class="keys">{keys(f)}</span>{fieldText(f)}
+						</div>
+					{/each}
+				</div>
+			{/if}
+			{#if d.indexes?.length}
+				<div class="rows" style:font-size="{TABLE.row}px">
+					{#each d.indexes as ix (ix.name)}
+						<div class="row">{indexText(ix)}</div>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	{:else}
+		<div class="face" style:font-size="{font}px">
+			<div class="name">{d.name}</div>
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -80,6 +121,45 @@
 	}
 	.name {
 		font-weight: 600;
+	}
+	/* Model as a UML table: name compartment, field compartment, index compartment. */
+	.face.table {
+		justify-content: flex-start;
+		align-items: stretch;
+		gap: 0;
+		padding: 0;
+		text-align: left;
+		white-space: nowrap;
+	}
+	.face.table.ref {
+		border-style: dashed;
+	}
+	.thead {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		align-items: center;
+		flex-shrink: 0;
+	}
+	.note {
+		opacity: 0.75;
+	}
+	.rows {
+		border-top: 1px solid var(--stroke);
+		padding: calc(var(--gap) / 2) var(--pad);
+	}
+	.row {
+		height: var(--row);
+		line-height: var(--row);
+	}
+	.row.req {
+		font-weight: 600;
+	}
+	.keys {
+		display: inline-block;
+		width: var(--key);
+		font-weight: 600;
+		opacity: 0.8;
 	}
 	.header {
 		position: absolute;

@@ -1,0 +1,12 @@
+id: gldpadizd1
+ownedBy: tz83lkox5o
+name: Price
+fields:
+  - { name: id, type: uuid, pk: true }
+  - { name: productId, type: uuid, pi: true, required: true }
+  - { name: currency, type: string, required: true }
+  - { name: amount, type: decimal, required: true }
+  - { name: validFrom, type: date, required: true }
+  - { name: validTo, type: date }
+indexes:
+  - { name: ux_price_product_period, fields: [productId, currency, validFrom], unique: true }

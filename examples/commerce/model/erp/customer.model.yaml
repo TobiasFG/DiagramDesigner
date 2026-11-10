@@ -1,0 +1,11 @@
+id: li65oa3wga
+ownedBy: fghfo41tiv
+name: Customer
+fields:
+  - { name: id, type: uuid, pk: true }
+  - { name: customerNo, type: string, pi: true, required: true }
+  - { name: name, type: string, required: true }
+  - { name: email, type: string }
+  - { name: vatNo, type: string }
+indexes:
+  - { name: ux_customer_email, fields: [email], unique: true }
