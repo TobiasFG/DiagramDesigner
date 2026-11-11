@@ -1,18 +1,20 @@
 <script lang="ts" module>
 	import type { ModelField, ModelIndex } from '#lib/model/schema.ts';
-	import type { TableColumn } from '#lib/landscape/layout.ts';
+	import type { ModelView, TableColumn } from '#lib/landscape/layout.ts';
 
 	export interface LandscapeNodeData extends Record<string, unknown> {
 		name: string;
 		kind: string;
 		group: boolean;
 		selected: boolean;
-		/** Owner's name when the box is a reference to a model owned elsewhere. */
+		/** Owner's name when the model is owned elsewhere. */
 		owner?: string;
+		/** The fields that exist in this view. */
 		fields?: ModelField[];
 		indexes?: ModelIndex[];
-		/** Field columns; set when the model is drawn as a table. */
+		/** Field columns; set when the box is a model card. */
 		table?: TableColumn[];
+		view?: ModelView;
 		/** Names of the models and fields the fields point at (ref, model, from), by id. */
 		labels?: Record<string, string>;
 	}
@@ -64,13 +66,16 @@
 		{@const cols = d.table}
 		<div
 			class="face table"
-			class:ref={d.owner}
+			class:class={d.view === 'class'}
+			class:ref={d.owner && d.view === 'class'}
 			style:--pad="{TABLE.pad}px"
 			style:--row="{TABLE.rowHeight}px"
 		>
 			<div class="thead" style:height="{TABLE.head}px">
 				<div class="name" style:font-size="{TABLE.title}px">{d.name}</div>
-				<div class="note" style:font-size="{TABLE.note}px">{subtitle(d.owner)}</div>
+				<div class="note" style:font-size="{TABLE.note}px">
+					{subtitle(d.view ?? 'class', d.owner)}
+				</div>
 			</div>
 			{#if d.fields?.length}
 				<div
@@ -97,7 +102,7 @@
 								class:muted={c.key === 'type' || c.key === 'from'}
 								class:mark={c.key === 'required' || c.key === 'nullable'}
 							>
-								{#if c.key === 'name'}{f.name}{#each keysOf(f) as k (k)}<span
+								{#if c.key === 'name'}{f.name}{#each d.view === 'table' ? keysOf(f) : [] as k (k)}<span
 											class="badge"
 											style:font-size="{TABLE.badge}px"
 											title={KEY_TITLES[k]}>{k}</span
@@ -227,6 +232,10 @@
 	}
 	.face.table.ref {
 		border-style: dashed;
+	}
+	/* A class has a tinted name bar; a table a plain one. */
+	.face.table.class .thead {
+		background: var(--sdv-model-class-head);
 	}
 	.thead {
 		display: flex;

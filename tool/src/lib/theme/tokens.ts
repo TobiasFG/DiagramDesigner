@@ -21,6 +21,7 @@ const light = {
 
 	'model-fill': '#ffffff',
 	'model-header': '#f1efea',
+	'model-class-head': '#e9ecf3',
 	'model-stroke': '#d9d5cc',
 	'model-text': '#1d1d1b',
 	'model-key-fill': '#f4ead0',
@@ -48,6 +49,7 @@ const dark: Record<Token, string> = {
 
 	'model-fill': '#1b1c20',
 	'model-header': '#24252a',
+	'model-class-head': '#1f2431',
 	'model-stroke': '#36373d',
 	'model-text': '#e9e7e3',
 	'model-key-fill': '#3a3120',

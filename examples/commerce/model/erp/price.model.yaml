@@ -1,5 +1,6 @@
 id: gldpadizd1
 ownedBy: tz83lkox5o
+storedIn: iatbgcla3c
 name: Price
 fields:
   - { id: qjcaxl0h3k, name: id, type: uuid, pk: true }

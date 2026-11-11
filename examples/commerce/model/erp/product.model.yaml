@@ -1,5 +1,6 @@
 id: rksvyte4fo
 ownedBy: ywl0a6j1ev
+storedIn: iatbgcla3c
 name: Product
 fields:
   - { id: j6holg5xo1, name: id, type: uuid, pk: true }

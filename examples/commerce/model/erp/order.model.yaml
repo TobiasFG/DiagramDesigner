@@ -1,5 +1,6 @@
 id: llns90zy3d
 ownedBy: d8mg4xc8ef
+storedIn: iatbgcla3c
 name: Order
 fields:
   - { id: jxhrrx2cmz, name: id, type: uuid, pk: true }
@@ -9,6 +10,8 @@ fields:
   - { id: kcidzu5v59, name: placedAt, type: datetime, required: true }
   - { id: wmzkfdam0u, name: total, type: decimal, required: true, constraints: [min 0] }
   - { id: p2vo4bbov0, name: note, type: string, nullable: true }
+  - { id: eqibk7xt0j, name: lines, model: ahwod9ofrf, many: true, required: true }
+  - { id: jzhfxrngck, name: lineCount, type: int, stored: false, from: [eqibk7xt0j], derived: count of lines }
 indexes:
   - { name: ux_order_no, fields: [wuv2sdo0fq], unique: true }
   - { name: ix_order_customer, fields: [xbsmlwkerd, kcidzu5v59] }

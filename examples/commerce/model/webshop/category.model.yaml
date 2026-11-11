@@ -1,5 +1,6 @@
 id: pk5eh2ufzk
 ownedBy: wajh6e6nvm
+storedIn: jgp5k894xt
 name: Category
 fields:
   - { id: vh88y19z0i, name: id, type: uuid, pk: true }

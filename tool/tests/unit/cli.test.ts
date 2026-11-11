@@ -75,6 +75,7 @@ describe('sdv schema', () => {
 			'id',
 			'parent',
 			'ownedBy',
+			'storedIn',
 			'models',
 			'fields',
 			'indexes',

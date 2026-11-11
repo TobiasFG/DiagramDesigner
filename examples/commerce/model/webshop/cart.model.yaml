@@ -1,5 +1,6 @@
 id: uzi5stl672
 ownedBy: xmv85uqqsk
+storedIn: jgp5k894xt
 name: Cart
 fields:
   - { id: tlqmqqmcv9, name: id, type: uuid, pk: true }

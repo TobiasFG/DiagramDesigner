@@ -1,5 +1,6 @@
 id: ahwod9ofrf
 ownedBy: d8mg4xc8ef
+storedIn: iatbgcla3c
 name: Order Line
 fields:
   - { id: n5g57gkusw, name: orderId, type: uuid, pk: true, pi: true, required: true, ref: jxhrrx2cmz }

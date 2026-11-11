@@ -42,7 +42,9 @@ Technical / deployment architecture
 
 - **Working:** one canvas over the whole model. Layout is computed once; zooming only moves
   the camera and fades detail in and out (systems › modules › models). Models render as
-  tables with keys, foreign-key and composition lines, and field lineage. Clicking selects.
+  classes where they are owned (grouped with the models they alone hold) and as stored
+  tables where they are stored, with keys, foreign-key and composition lines, and field
+  lineage. Clicking selects.
 - **Open goals:** [docs/goals.md](docs/goals.md).
 
 ## How it works

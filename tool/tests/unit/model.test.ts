@@ -165,6 +165,45 @@ describe('entity checks', () => {
 		expect(model.elements.get('a')!.parentId).toBe('m');
 	});
 
+	it('stores models in a system or module and lists them there', () => {
+		const { model, diagnostics } = loadStrings({
+			's/s.system.yaml': 'id: s\n',
+			's/m.module.yaml': 'id: m\nparent: s\nstoredIn: s\n',
+			's/db.module.yaml': 'id: db\nparent: s\nmodels: [a]\n',
+			's/u.logic-unit.yaml': 'id: u\nparent: m\n',
+			's/a.model.yaml': 'id: a\nownedBy: m\nstoredIn: db\n',
+			's/b.model.yaml': 'id: b\nownedBy: db\nstoredIn: db\n',
+			's/c.model.yaml': 'id: c\nownedBy: m\nstoredIn: u\n',
+			's/d.model.yaml': 'id: d\nownedBy: m\nstoredIn: ghost\n'
+		});
+		expect(codes(diagnostics)).toEqual([
+			'dangling-ref',
+			'model-only',
+			'own-model-ref',
+			'parent-kind'
+		]);
+		// Stored where owned: listed once, as a child.
+		expect(model.elements.get('db')!.storedIds).toEqual(['a']);
+		expect(model.elements.get('db')!.childIds).toEqual(['b']);
+	});
+
+	it('keeps keys and indexes on stored fields', () => {
+		const { diagnostics } = loadStrings({
+			's/s.system.yaml': 'id: s\n',
+			's/b.model.yaml': 'id: b\nownedBy: s\n',
+			's/a.model.yaml': [
+				'id: a',
+				'ownedBy: s',
+				'fields:',
+				'  - { id: f1, name: n, type: int, stored: false, pk: true }',
+				'  - { id: f2, name: bs, model: b, many: true }',
+				'indexes:',
+				'  - { name: ix, fields: [f1, f2] }'
+			].join('\n')
+		});
+		expect(codes(diagnostics)).toEqual(['unknown-field', 'unknown-field', 'unstored-key']);
+	});
+
 	it('checks model fields and indexes', () => {
 		const { diagnostics } = loadStrings({
 			's/s.system.yaml': 'id: s\nfields: [{ id: x, name: x, type: int }]\n',

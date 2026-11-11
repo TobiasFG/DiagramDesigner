@@ -1,5 +1,6 @@
 id: z507p6fu7v
 ownedBy: up28wl6i9p
+storedIn: iatbgcla3c
 name: Stock Level
 fields:
   - { id: on60ji7dov, name: productId, type: uuid, pk: true, pi: true, required: true, ref: j6holg5xo1 }

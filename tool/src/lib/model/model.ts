@@ -18,6 +18,10 @@ export interface ElementInfo {
 	childIds: string[];
 	/** Models owned elsewhere that are drawn inside this entity as references. */
 	refIds: string[];
+	/** Models only: the system or module storing it. */
+	storedIn?: string;
+	/** Models stored here (their `storedIn`), drawn inside as tables. */
+	storedIds: string[];
 	tags?: string[];
 	/** 0 for top-level elements. */
 	depth: number;
@@ -129,7 +133,7 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 			continue;
 		}
 		if (!claim(value.id, 'element', loc)) continue;
-		const { parent, ownedBy, models, ...rest } = value;
+		const { parent, ownedBy, storedIn, models, ...rest } = value;
 		const base = file.slice(file.lastIndexOf('/') + 1).split('.')[0];
 		const info: ElementInfo = {
 			id: value.id,
@@ -139,6 +143,8 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 			parentId: kind === 'model' ? ownedBy : parent,
 			childIds: [],
 			refIds: models ?? [],
+			storedIn,
+			storedIds: [],
 			depth: 0,
 			loc
 		};
@@ -150,6 +156,8 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 			diag('error', 'model-parent', `model "${info.name}" uses ownedBy, not parent`, loc, 'parent');
 		if (kind !== 'model' && ownedBy)
 			diag('error', 'owned-by', `only models have ownedBy`, loc, 'ownedBy');
+		if (kind !== 'model' && storedIn)
+			diag('error', 'model-only', `only models have storedIn`, loc, 'storedIn');
 		if (kind === 'model' && !ownedBy)
 			diag('error', 'missing-owner', `model "${info.name}" needs ownedBy`, loc, 'id');
 		if (kind !== 'system' && kind !== 'model' && !parent)
@@ -188,15 +196,25 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 						fieldLoc,
 						'nullable'
 					);
+				if (f.pk && (f.model || f.stored === false))
+					diag(
+						'error',
+						'unstored-key',
+						`key field "${f.name}" must be stored, so it cannot hold a model or be stored: false`,
+						fieldLoc,
+						'pk'
+					);
 			});
-			const own = new Set(value.fields?.map((f) => f.id));
+			const own = new Set(
+				value.fields?.filter((f) => !f.model && f.stored !== false).map((f) => f.id)
+			);
 			value.indexes?.forEach((ix, i) =>
 				ix.fields.forEach((f, j) => {
 					if (!own.has(f))
 						diag(
 							'error',
 							'unknown-field',
-							`index "${ix.name}" uses "${f}", which is not a field of this model`,
+							`index "${ix.name}" uses "${f}", which is not a stored field of this model`,
 							at(loc, 'indexes', i, 'fields', j)
 						);
 				})
@@ -289,9 +307,32 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 				);
 			else if (target.parentId === info.id)
 				diag('warning', 'own-model-ref', `"${target.name}" is already owned here`, refLoc);
+			else if (target.storedIn === info.id)
+				diag('warning', 'own-model-ref', `"${target.name}" is already stored here`, refLoc);
 			else return true;
 			return false;
 		});
+		if (info.storedIn) {
+			const store = model.elements.get(info.storedIn);
+			if (!store)
+				diag(
+					'error',
+					'dangling-ref',
+					`storedIn "${info.storedIn}" is not an entity`,
+					info.loc,
+					'storedIn'
+				);
+			else if (store.def.kind !== 'system' && store.def.kind !== 'module')
+				diag(
+					'error',
+					'parent-kind',
+					`a model cannot be stored in a ${store.def.kind}; allowed: system, module`,
+					info.loc,
+					'storedIn'
+				);
+			// Stored where owned: drawn once, in the owner, as the table.
+			else if (info.storedIn !== info.parentId) store.storedIds.push(info.id);
+		}
 		if (!info.parentId) continue;
 		const field = info.def.kind === 'model' ? 'ownedBy' : 'parent';
 		if (!model.elements.has(info.parentId)) {

@@ -8,4 +8,4 @@ name: ERP
 models: [<model id>]   # optional: models owned elsewhere, drawn inside as dashed references
 ```
 
-Children: modules, apis, models (via `ownedBy`).
+Children: modules, apis, models (via `ownedBy`), models stored here (via their `storedIn`).

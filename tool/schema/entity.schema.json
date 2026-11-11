@@ -17,6 +17,11 @@
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]*$"
     },
+    "storedIn": {
+      "description": "Models only: id of the system or module storing its data (e.g. a database module)",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
     "models": {
       "description": "Ids of models used here but owned elsewhere; drawn inside as references",
       "type": "array",
@@ -99,6 +104,10 @@
               "string",
               "number"
             ]
+          },
+          "stored": {
+            "description": "false: exists in the class only, never stored (e.g. computed); default true",
+            "type": "boolean"
           }
         },
         "required": [

@@ -52,6 +52,10 @@ export const PARENT_KINDS: Partial<Record<EntityFileKind, EntityFileKind[]>> = {
  * A field has either a primitive `type` or a `model` it holds (composition); `ref` holds a
  * key instead (foreign key), so it goes with `type`. `from` and `derived` record lineage:
  * which fields elsewhere this field's value comes from, for change impact.
+ *
+ * A model is drawn as a class where it is owned and as a stored table where it is stored
+ * (`storedIn`). Held models and `stored: false` fields exist only in the class; a ref to the
+ * model that holds this one exists only in the table.
  */
 export const ModelField = z
 	.strictObject({
@@ -73,7 +77,11 @@ export const ModelField = z
 			.array(Id)
 			.optional()
 			.describe('Ids of the fields this value comes from; omit for a source field'),
-		derived: Text.optional().describe('How the value is computed or changed from its from fields')
+		derived: Text.optional().describe('How the value is computed or changed from its from fields'),
+		stored: z
+			.boolean()
+			.optional()
+			.describe('false: exists in the class only, never stored (e.g. computed); default true')
 	})
 	.describe('Model field: a table column or an object property');
 export type ModelField = z.infer<typeof ModelField>;
@@ -98,6 +106,9 @@ export const EntityFile = z
 		id: Id.describe('Generated with `sdv new`; never edited'),
 		parent: Id.optional().describe('Id of the parent entity; omitted for systems and models'),
 		ownedBy: Id.optional().describe('Models only: id of the one system or module owning it'),
+		storedIn: Id.optional().describe(
+			'Models only: id of the system or module storing its data (e.g. a database module)'
+		),
 		models: z
 			.array(Id)
 			.optional()

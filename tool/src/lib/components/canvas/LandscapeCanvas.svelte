@@ -72,15 +72,17 @@
 				].join(';'),
 				data: {
 					name: info.name,
-					kind: info.def.kind,
+					// A closed boundary reads as the model it is drawn round.
+					kind: b.boundary ? 'model' : info.def.kind,
 					group: b.group,
 					selected: sel.has(b.id),
 					owner: b.ref ? el(info.parentId ?? '')?.name : undefined,
-					fields: info.def.fields,
-					indexes: info.def.indexes,
+					fields: b.fields,
+					indexes: b.view === 'table' ? info.def.indexes : undefined,
 					table: b.table,
+					view: b.view,
 					labels: Object.fromEntries(
-						(info.def.fields ?? [])
+						(b.fields ?? [])
 							.flatMap((f) => [f.ref, f.model, ...(f.from ?? [])])
 							.flatMap((id) => {
 								const label = id && refLabel(design.model, id);

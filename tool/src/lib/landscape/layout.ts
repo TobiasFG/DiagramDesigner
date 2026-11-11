@@ -2,12 +2,21 @@ import type { Model } from '../model/model';
 import type { Element, ModelField, ModelIndex } from '../model/schema';
 import { textWidth } from '../render/text';
 
+/** A model is drawn as a class where it is owned, as a table where it is stored. */
+export type ModelView = 'class' | 'table';
+
 export interface LandscapeBox {
-	/** Element id, or `<parent box id>>model id` for a reference to a model owned elsewhere. */
+	/**
+	 * Element id; `<parent box id>>model id` for a model owned elsewhere (referenced or
+	 * stored there); `<root model id>#parts` for a composition boundary.
+	 */
 	id: string;
-	/** The element drawn in the box. */
+	/** The element drawn in the box; a boundary's root model. */
 	elementId: string;
+	/** Drawn here but owned elsewhere. */
 	ref: boolean;
+	/** Boundary round a model and the models only it holds. */
+	boundary: boolean;
 	/** Has boxes inside. */
 	group: boolean;
 	parentId?: string;
@@ -19,8 +28,11 @@ export interface LandscapeBox {
 	absY: number;
 	width: number;
 	height: number;
-	/** Field columns, for a model drawn as a table. */
+	/** Field columns, for a model card. */
 	table?: TableColumn[];
+	view?: ModelView;
+	/** The model's fields that exist in this view. */
+	fields?: ModelField[];
 }
 
 interface Size {
@@ -34,6 +46,8 @@ interface Item {
 	/** Element drawn. */
 	el: string;
 	ref: boolean;
+	boundary?: boolean;
+	view?: ModelView;
 }
 
 /** A box without children: its name at a fixed size, the box fitted round it. */
@@ -100,8 +114,68 @@ export const fromText = (f: ModelField, label: (id: string) => string | undefine
 export const indexFields = (ix: ModelIndex, fields: ModelField[]) =>
 	ix.fields.map((id) => fields.find((f) => f.id === id)?.name ?? id).join(', ');
 
-/** Line under a model's name: its kind, plus the owner for a reference. */
-export const subtitle = (owner?: string) => (owner ? `Model · owned by ${owner}` : 'Model');
+/** Line under a model's name: its view, plus the owner when it is owned elsewhere. */
+export const subtitle = (view: ModelView, owner?: string) =>
+	(view === 'table' ? 'Stored' : 'Model') + (owner ? ` · owned by ${owner}` : '');
+
+/** Every model holding each model through a `model` field, itself excluded. */
+export function holdersOf(model: Model): Map<string, Set<string>> {
+	const out = new Map<string, Set<string>>();
+	for (const [id, info] of model.elements)
+		for (const f of info.def.fields ?? []) {
+			if (!f.model || f.model === id || !model.elements.has(f.model)) continue;
+			if (!out.has(f.model)) out.set(f.model, new Set());
+			out.get(f.model)!.add(id);
+		}
+	return out;
+}
+
+/**
+ * The model a model is a part of: the only model with the same owner that holds it. Parts
+ * are drawn inside their root's boundary; a model held from several places stands alone.
+ */
+function partOf(model: Model, holders: Map<string, Set<string>>): Map<string, string> {
+	const out = new Map<string, string>();
+	for (const [id, hs] of holders) {
+		const owner = model.elements.get(id)!.parentId;
+		// A holder drawn as a table in the owner has no held models to show.
+		const same = [...hs].filter((h) => {
+			const holder = model.elements.get(h)!;
+			return holder.parentId === owner && holder.storedIn !== owner;
+		});
+		if (owner && same.length === 1) out.set(id, same[0]);
+	}
+	// Models holding each other: the first one found is no part, so the rest have a root.
+	for (const id of [...out.keys()]) {
+		const seen = new Set([id]);
+		let cur = out.get(id);
+		while (cur && !seen.has(cur)) {
+			seen.add(cur);
+			cur = out.get(cur);
+		}
+		if (cur === id) out.delete(id);
+	}
+	return out;
+}
+
+/**
+ * The fields that exist in a view. A table has no held models and no `stored: false`
+ * fields; a class has no ref to a model holding it, as being held already links the two.
+ */
+export function viewFields(
+	model: Model,
+	holders: Map<string, Set<string>>,
+	modelId: string,
+	view: ModelView
+): ModelField[] {
+	const fields = model.elements.get(modelId)?.def.fields ?? [];
+	if (view === 'table') return fields.filter((f) => !f.model && f.stored !== false);
+	const hs = holders.get(modelId);
+	return fields.filter((f) => {
+		if (!f.ref || !hs) return true;
+		return !hs.has(model.fields.get(f.ref)?.modelId ?? f.ref);
+	});
+}
 
 /** Vertical centre of field row `i`: below the border, the name bar and the header row. */
 export const fieldRowY = (i: number) => 1 + TABLE.head + (i + 1.5) * TABLE.rowHeight;
@@ -119,6 +193,7 @@ const badgesWidth = (labels: string[]) =>
  */
 function fieldColumns(
 	fields: ModelField[],
+	view: ModelView,
 	label: (id: string) => string | undefined
 ): TableColumn[] {
 	const text = (s: string) => textWidth(s, TABLE.row);
@@ -128,7 +203,7 @@ function fieldColumns(
 			'Name',
 			undefined,
 			fields.map((f) => {
-				const keys = keysOf(f);
+				const keys = view === 'table' ? keysOf(f) : [];
 				return text(f.name) + (keys.length ? TABLE.badgeGap + badgesWidth(keys) : 0);
 			}),
 			true
@@ -179,16 +254,17 @@ const indexWidth = (ix: ModelIndex, fields: ModelField[]) =>
 function tableLayout(
 	name: string,
 	def: Element,
+	fields: ModelField[],
+	view: ModelView,
 	owner: string | undefined,
 	label: (id: string) => string | undefined
 ): { size: Size; cols: TableColumn[] } {
-	const fields = def.fields ?? [];
-	const indexes = def.indexes ?? [];
-	const cols = fieldColumns(fields, label);
+	const indexes = view === 'table' ? (def.indexes ?? []) : [];
+	const cols = fieldColumns(fields, view, label);
 	// The 2px is the card's border, which sits inside the box.
 	const width = Math.max(
 		textWidth(name, TABLE.title, true) + 2 * TABLE.pad,
-		textWidth(subtitle(owner), TABLE.note) + 2 * TABLE.pad,
+		textWidth(subtitle(view, owner), TABLE.note) + 2 * TABLE.pad,
 		fields.length ? cols.reduce((w, c) => w + c.width, 0) : 0,
 		...indexes.map((ix) => indexWidth(ix, fields))
 	);
@@ -244,18 +320,49 @@ function masonry(sizes: Size[], cols: number, gap: number): Block {
  * Lays out the whole element tree: top-level elements in one row (file order, so upstream
  * systems come first), children in a near-square masonry. Every box is fitted to its content.
  * Parents precede their children in the result, as Svelte Flow requires.
+ *
+ * A model is a class card in its owner, inside a boundary with the models only it holds, and
+ * a table card in the entity storing it. A model stored where it is owned is one table card.
  */
 export function layoutLandscape(model: Model): LandscapeBox[] {
 	const out: LandscapeBox[] = [];
 	const sizes = new Map<string, Size>();
-	const tables = new Map<string, TableColumn[]>();
-	// A reference is drawn as a closed box, so it never has boxes inside.
+	const cards = new Map<string, { cols: TableColumn[]; fields: ModelField[] }>();
+	const holders = holdersOf(model);
+	const parts = partOf(model, holders);
+	const rootOf = (id: string): string => (parts.has(id) ? rootOf(parts.get(id)!) : id);
+	const hasParts = new Set([...parts.keys()].map(rootOf));
+	const card = (id: string): Item => {
+		const info = model.elements.get(id)!;
+		return { id, el: id, ref: false, view: info.storedIn === info.parentId ? 'table' : 'class' };
+	};
+	const owned = (id: string): Item => {
+		if (model.elements.get(id)!.def.kind !== 'model') return { id, el: id, ref: false };
+		return hasParts.has(id) ? { id: `${id}#parts`, el: id, ref: false, boundary: true } : card(id);
+	};
+	// A model owned elsewhere is drawn as a closed card, so it never has boxes inside.
 	const kidsOf = (item: Item): Item[] => {
 		const info = model.elements.get(item.el);
-		if (item.ref || !info) return [];
+		if (item.ref || item.view || !info) return [];
+		if (item.boundary)
+			return model.elements
+				.get(info.parentId!)!
+				.childIds.filter((id) => id === item.el || (parts.has(id) && rootOf(id) === item.el))
+				.map(card);
 		return [
-			...info.childIds.map((id) => ({ id, el: id, ref: false })),
-			...info.refIds.map((id) => ({ id: `${item.id}>${id}`, el: id, ref: true }))
+			...info.childIds.filter((id) => !parts.has(id)).map(owned),
+			...info.refIds.map((id) => ({
+				id: `${item.id}>${id}`,
+				el: id,
+				ref: true,
+				view: 'class' as const
+			})),
+			...info.storedIds.map((id) => ({
+				id: `${item.id}>${id}`,
+				el: id,
+				ref: true,
+				view: 'table' as const
+			}))
 		];
 	};
 	const colsFor = (n: number) => Math.ceil(Math.sqrt(n));
@@ -270,10 +377,13 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 		if (kids.length) {
 			const b = arrange(kids, colsFor(kids.length), GAP);
 			size = { width: b.width + 2 * PAD, height: b.height + HEADER + PAD };
-		} else if (info?.def.kind === 'model') {
+		} else if (info && item.view) {
 			const owner = item.ref ? model.elements.get(info.parentId ?? '')?.name : undefined;
-			const t = tableLayout(info.name, info.def, owner, (id) => refLabel(model, id));
-			tables.set(item.id, t.cols);
+			const fields = viewFields(model, holders, info.id, item.view);
+			const t = tableLayout(info.name, info.def, fields, item.view, owner, (id) =>
+				refLabel(model, id)
+			);
+			cards.set(item.id, { cols: t.cols, fields });
 			size = t.size;
 		} else size = leafSize(info?.name ?? item.el);
 		sizes.set(item.id, size);
@@ -299,6 +409,7 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 				id: item.id,
 				elementId: item.el,
 				ref: item.ref,
+				boundary: item.boundary ?? false,
 				group: kids.length > 0,
 				parentId: parent?.id,
 				x: absX - (parent?.absX ?? 0),
@@ -307,7 +418,9 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 				absY,
 				width: slot.width,
 				height: slot.height,
-				table: tables.get(item.id)
+				table: cards.get(item.id)?.cols,
+				view: item.view,
+				fields: cards.get(item.id)?.fields
 			};
 			out.push(box);
 			if (kids.length)
@@ -351,21 +464,21 @@ export interface ModelLink {
 }
 
 /**
- * Lines for field refs and held models whose target table sits in the same box, so they
- * never cross a boundary; others show only as text in the row. The ends face each other, and tables
- * stacked in one column (or a table referring to itself) are joined round the right side.
+ * Lines for field refs and held models whose target card sits in the same box, so they
+ * never cross a boundary; others show only as text in the row. The ends face each other, and
+ * cards stacked in one column (or a card referring to itself) are joined round the right side.
  */
 export function modelLinks(model: Model, boxes: LandscapeBox[]): ModelLink[] {
 	const out: ModelLink[] = [];
 	for (const b of boxes) {
-		if (!b.table) continue;
-		for (const f of model.elements.get(b.elementId)?.def.fields ?? []) {
+		for (const f of b.fields ?? []) {
 			const to = f.ref ?? f.model;
 			if (!to) continue;
 			const field = model.fields.get(to);
 			const el = field?.modelId ?? to;
-			const t = boxes.find((o) => o.table && o.parentId === b.parentId && o.elementId === el);
+			const t = boxes.find((o) => o.view && o.parentId === b.parentId && o.elementId === el);
 			if (!t) continue;
+			const shown = field && t.fields?.some((tf) => tf.id === field.def.id);
 			const [from, side] =
 				t.absX >= b.absX + b.width ? 'rl' : t.absX + t.width <= b.absX ? 'lr' : 'rr';
 			out.push({
@@ -374,7 +487,7 @@ export function modelLinks(model: Model, boxes: LandscapeBox[]): ModelLink[] {
 				source: b.id,
 				target: t.id,
 				sourceHandle: `out:${f.id}:${from}`,
-				targetHandle: field ? `in:${field.def.id}:${side}` : `head:${side}`,
+				targetHandle: shown ? `in:${field.def.id}:${side}` : `head:${side}`,
 				parentId: b.parentId
 			});
 		}

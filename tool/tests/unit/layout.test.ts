@@ -77,6 +77,70 @@ describe('landscape layout', () => {
 		expect(boxes.find((b) => b.id === 'db')!.group).toBe(true);
 	});
 
+	it('draws a model as a class where owned and a table where stored', () => {
+		const m = loadStrings({
+			's/s.system.yaml': 'id: s\n',
+			's/m.module.yaml': 'id: m\nparent: s\n',
+			's/db.module.yaml': 'id: db\nparent: s\n',
+			's/o.model.yaml': [
+				'id: o',
+				'ownedBy: m',
+				'storedIn: db',
+				'fields:',
+				'  - { id: o-id, name: id, type: uuid, pk: true }',
+				'  - { id: o-ls, name: lines, model: l, many: true }',
+				'  - { id: o-n, name: count, type: int, stored: false }'
+			].join('\n'),
+			's/l.model.yaml': [
+				'id: l',
+				'ownedBy: m',
+				'storedIn: db',
+				'fields:',
+				'  - { id: l-o, name: orderId, type: uuid, ref: o-id }',
+				'  - { id: l-q, name: qty, type: int }'
+			].join('\n'),
+			's/t.model.yaml':
+				'id: t\nownedBy: db\nstoredIn: db\nfields: [{ id: t-x, name: x, type: int }]\n'
+		}).model;
+		const boxes = layoutLandscape(m);
+		const box = (id: string) => boxes.find((b) => b.id === id)!;
+		const names = (id: string) => box(id).fields!.map((f) => f.name);
+		// The owner shows one boundary round the holder and the part it alone holds.
+		expect(boxes.filter((b) => b.parentId === 'm').map((b) => b.id)).toEqual(['o#parts']);
+		expect(box('o#parts')).toMatchObject({ boundary: true, group: true, elementId: 'o' });
+		expect([box('o').view, box('l').view, box('l').parentId]).toEqual([
+			'class',
+			'class',
+			'o#parts'
+		]);
+		expect([names('o'), names('l')]).toEqual([['id', 'lines', 'count'], ['qty']]);
+		// The store shows both as tables, plus the table it owns, drawn once.
+		expect([box('db>o').view, names('db>o'), names('db>l')]).toEqual([
+			'table',
+			['id'],
+			['orderId', 'qty']
+		]);
+		expect([box('t').view, boxes.filter((b) => b.elementId === 't').length]).toEqual(['table', 1]);
+		expect(modelLinks(m, boxes).map((l) => [l.id, l.kind])).toEqual([
+			['db>l.l-o', 'ref'],
+			['o.o-ls', 'model']
+		]);
+	});
+
+	it('leaves a model held from several places out of any boundary', () => {
+		const m = loadStrings({
+			's/s.system.yaml': 'id: s\n',
+			's/a.model.yaml': 'id: a\nownedBy: s\nfields: [{ id: a-x, name: x, model: x }]\n',
+			's/b.model.yaml': 'id: b\nownedBy: s\nfields: [{ id: b-x, name: x, model: x }]\n',
+			's/x.model.yaml': 'id: x\nownedBy: s\n'
+		}).model;
+		expect(
+			layoutLandscape(m)
+				.filter((b) => b.parentId === 's')
+				.map((b) => b.id)
+		).toEqual(['a', 'b', 'x']);
+	});
+
 	const tables = loadStrings({
 		's/s.system.yaml': 'id: s\n',
 		's/a.model.yaml': 'id: a\nownedBy: s\nfields: [{ id: a-id, name: id, type: uuid, pk: true }]\n',
@@ -86,9 +150,11 @@ describe('landscape layout', () => {
 			'fields:',
 			...Array.from({ length: 8 }, (_, i) => `  - { id: b${i}, name: f${i}, type: int }`),
 			'  - { id: b-a, name: aId, type: uuid, ref: a-id }',
-			'  - { id: b-up, name: up, type: uuid, ref: b }'
+			'  - { id: b-up, name: up, type: uuid, ref: b }',
+			// c is held from two places, so it stays out of a boundary.
+			'  - { id: b-c, name: c, model: c }'
 		].join('\n'),
-		's/c.model.yaml': 'id: c\nownedBy: s\nfields: [{ id: c-x, name: x, type: int }]\n',
+		's/c.model.yaml': 'id: c\nownedBy: s\nfields: [{ id: c-x, name: amount, type: decimal }]\n',
 		's/d.model.yaml': [
 			'id: d',
 			'ownedBy: s',
@@ -110,15 +176,16 @@ describe('landscape layout', () => {
 		for (const x of cards) for (const y of cards) if (x !== y) expect(overlap(x, y)).toBe(false);
 	});
 
-	it('links field refs to sibling tables, facing each other', () => {
+	it('links field refs to sibling cards, facing each other', () => {
 		const links = modelLinks(tables, layoutLandscape(tables));
 		expect(links.map((l) => [l.id, l.kind, l.target, l.sourceHandle, l.targetHandle])).toEqual([
 			// A ref to a field ends on that field's row; a ref to a model on its name bar.
 			['b.b-a', 'ref', 'a', 'out:b-a:l', 'in:a-id:r'],
 			['b.b-up', 'ref', 'b', 'out:b-up:r', 'head:r'],
+			// A held model ends on the held card's name bar.
+			['b.b-c', 'model', 'c', 'out:b-c:l', 'head:r'],
 			// Stacked in one column, so joined round the right.
 			['d.d-a', 'ref', 'a', 'out:d-a:r', 'head:r'],
-			// A held model ends on the held table's name bar.
 			['d.d-c', 'model', 'c', 'out:d-c:r', 'head:r']
 		]);
 	});
