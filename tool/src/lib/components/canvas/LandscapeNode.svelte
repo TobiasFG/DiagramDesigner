@@ -13,8 +13,8 @@
 		indexes?: ModelIndex[];
 		/** Field columns; set when the model is drawn as a table. */
 		table?: TableColumn[];
-		/** What each field ref shows, by the model or field id it points at. */
-		refLabels?: Record<string, string>;
+		/** Names of the models and fields the fields point at (ref, model, from), by id. */
+		labels?: Record<string, string>;
 	}
 </script>
 
@@ -22,13 +22,15 @@
 	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
 	import {
 		fieldRowY,
+		fromText,
 		indexFields,
 		indexKind,
 		KEY_TITLES,
 		keysOf,
 		LEAF,
 		subtitle,
-		TABLE
+		TABLE,
+		typeText
 	} from '#lib/landscape/layout.ts';
 
 	let { data, width = 0, height = 0 }: NodeProps = $props();
@@ -36,7 +38,7 @@
 	// A closed group's name scales with the box, so a system reads the same at any size. A
 	// leaf is fitted round its name, so the name keeps one size.
 	const font = $derived(d.group ? Math.min(width * 0.085, height * 0.2) : LEAF.font);
-	const refLabel = (f: ModelField) => (f.ref ? d.refLabels?.[f.ref] : undefined);
+	const label = (id: string) => d.labels?.[id];
 	// The last column takes any width the card has to spare.
 	const template = (cols: TableColumn[]) =>
 		cols
@@ -92,7 +94,7 @@
 							<div
 								class="cell"
 								class:first={ci === 0}
-								class:muted={c.key === 'type'}
+								class:muted={c.key === 'type' || c.key === 'from'}
 								class:mark={c.key === 'required' || c.key === 'nullable'}
 							>
 								{#if c.key === 'name'}{f.name}{#each keysOf(f) as k (k)}<span
@@ -100,7 +102,7 @@
 											style:font-size="{TABLE.badge}px"
 											title={KEY_TITLES[k]}>{k}</span
 										>{/each}
-								{:else if c.key === 'type'}{f.type}
+								{:else if c.key === 'type'}{typeText(f, label)}
 								{:else if c.key === 'required'}{f.required ? TABLE.check : ''}
 								{:else if c.key === 'nullable'}{f.nullable ? TABLE.check : ''}
 								{:else if c.key === 'constraints'}
@@ -108,7 +110,8 @@
 											class="badge plain"
 											style:font-size="{TABLE.badge}px">{k}</span
 										>{/each}
-								{:else}{refLabel(f) ?? ''}{/if}
+								{:else if c.key === 'from'}{fromText(f, label)}
+								{:else}{f.ref ? (label(f.ref) ?? '') : ''}{/if}
 							</div>
 						{/each}
 					{/each}
@@ -127,11 +130,11 @@
 				</div>
 			{/if}
 		</div>
-		<!-- Invisible line ends: one each side of the header, and of every row with a ref. -->
+		<!-- Invisible line ends: one each side of the header, and of every row with a ref or model. -->
 		<Handle type="target" id="head:l" position={Position.Left} style="top:{TABLE.head / 2}px" />
 		<Handle type="target" id="head:r" position={Position.Right} style="top:{TABLE.head / 2}px" />
 		{#each d.fields ?? [] as f, i (f.id)}
-			{#if f.ref}
+			{#if f.ref || f.model}
 				<Handle
 					type="source"
 					id="out:{f.id}:l"

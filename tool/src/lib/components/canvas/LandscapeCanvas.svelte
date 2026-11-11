@@ -79,11 +79,13 @@
 					fields: info.def.fields,
 					indexes: info.def.indexes,
 					table: b.table,
-					refLabels: Object.fromEntries(
-						(info.def.fields ?? []).flatMap((f) => {
-							const label = f.ref && refLabel(design.model, f.ref);
-							return label ? [[f.ref, label]] : [];
-						})
+					labels: Object.fromEntries(
+						(info.def.fields ?? [])
+							.flatMap((f) => [f.ref, f.model, ...(f.from ?? [])])
+							.flatMap((id) => {
+								const label = id && refLabel(design.model, id);
+								return label ? [[id, label]] : [];
+							})
 					)
 				} satisfies LandscapeNodeData
 			};
@@ -99,12 +101,18 @@
 				type: 'smoothstep',
 				pathOptions: { borderRadius: 0 },
 				class: 'model-link',
-				markerEnd: {
-					type: MarkerType.ArrowClosed,
-					width: 14,
-					height: 14,
-					color: 'var(--sdv-edge)'
-				},
+				// A foreign key points at the key; a held model has a UML composition diamond
+				// at the holder (defined below).
+				...(l.kind === 'ref'
+					? {
+							markerEnd: {
+								type: MarkerType.ArrowClosed,
+								width: 14,
+								height: 14,
+								color: 'var(--sdv-edge)'
+							}
+						}
+					: { markerStart: 'sdv-composition' }),
 				domAttributes: {
 					style: `--pw:${parent?.width ?? 1e6};--ph:${parent?.height ?? 1e6}`
 				}
@@ -155,6 +163,22 @@
 		/>
 		<Controls showLock={false} />
 	</SvelteFlow>
+	<svg class="defs" aria-hidden="true">
+		<defs>
+			<marker
+				id="sdv-composition"
+				viewBox="0 0 16 10"
+				refX="16"
+				refY="5"
+				markerWidth="16"
+				markerHeight="10"
+				markerUnits="userSpaceOnUse"
+				orient="auto-start-reverse"
+			>
+				<path d="M0,5 L8,0 L16,5 L8,10 Z" fill="var(--sdv-edge)" />
+			</marker>
+		</defs>
+	</svg>
 </div>
 
 <style>
@@ -178,6 +202,11 @@
 	}
 	.canvas :global(.model-link .svelte-flow__edge-path) {
 		stroke: var(--sdv-edge);
+	}
+	.defs {
+		position: absolute;
+		width: 0;
+		height: 0;
 	}
 	.canvas :global(.svelte-flow__node.ghost) {
 		pointer-events: none;

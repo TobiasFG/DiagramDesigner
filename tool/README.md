@@ -1,7 +1,7 @@
 # System Design Viewer — tool
 
-The SvelteKit app and the `sdv` CLI. See the [repository README](../README.md) for usage,
-the model reference and the CLI reference.
+The SvelteKit app and the `sdv` CLI. See the [repository README](../README.md) for usage and
+[docs/schema](../docs/schema/README.md) for the entity file format.
 
 ```sh
 npm install

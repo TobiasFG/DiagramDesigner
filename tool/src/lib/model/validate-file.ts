@@ -1,7 +1,6 @@
 import type { z } from 'zod';
-import { EntityFile, LayoutFile, View, type ViewFile } from './schema';
+import { EntityFile } from './schema';
 import { formatPath, type DataPath, type Diagnostic } from './diagnostics';
-import type { FileKind } from './parse';
 
 /** Issue produced by validation, before it is mapped to a source position. */
 export interface RawIssue {
@@ -47,69 +46,15 @@ export function issueMessage(issue: RawIssue): string {
 	return p ? `${p}: ${issue.message}` : issue.message;
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-	return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
 export interface ValidatedFile<T> {
 	value: T;
 	issues: RawIssue[];
-}
-
-/** A valid list item together with its index in the source list. */
-export interface IndexedItem<T = unknown> {
-	index: number;
-	value: T;
-}
-
-export interface ValidatedViewFile extends ValidatedFile<ViewFile> {
-	views: IndexedItem<View>[];
-}
-
-export function validateViewFile(data: unknown): ValidatedViewFile {
-	const issues: RawIssue[] = [];
-	const value: ViewFile = { views: [] };
-	const indexed: IndexedItem<View>[] = [];
-	if (data === null || data === undefined) return { value, issues, views: indexed };
-	if (!isRecord(data)) {
-		issues.push({ path: [], message: 'view file must be a mapping with a "views" list' });
-		return { value, issues, views: indexed };
-	}
-	for (const key of Object.keys(data)) {
-		if (key !== 'views') issues.push({ path: [], key, message: `unknown section "${key}"` });
-	}
-	const views = data.views;
-	if (views === undefined || views === null) return { value, issues, views: indexed };
-	if (!Array.isArray(views)) {
-		issues.push({ path: ['views'], message: 'must be a list' });
-		return { value, issues, views: indexed };
-	}
-	views.forEach((item, i) => {
-		const res = View.safeParse(item);
-		if (res.success) {
-			value.views!.push(res.data);
-			indexed.push({ index: i, value: res.data });
-		} else issues.push(...zodIssues(res.error, ['views', i]));
-	});
-	return { value, issues, views: indexed };
-}
-
-export function validateLayoutFile(data: unknown): ValidatedFile<LayoutFile | undefined> {
-	const res = LayoutFile.safeParse(data);
-	if (res.success) return { value: res.data, issues: [] };
-	return { value: undefined, issues: zodIssues(res.error) };
 }
 
 export function validateEntityFile(data: unknown): ValidatedFile<EntityFile | undefined> {
 	const res = EntityFile.safeParse(data);
 	if (res.success) return { value: res.data, issues: [] };
 	return { value: undefined, issues: zodIssues(res.error) };
-}
-
-export function validateFile(kind: FileKind, data: unknown): ValidatedFile<unknown> {
-	if (kind === 'entity') return validateEntityFile(data);
-	if (kind === 'view') return validateViewFile(data);
-	return validateLayoutFile(data);
 }
 
 export function toDiagnostic(

@@ -1,18 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { LEAF, layoutLandscape, modelLinks } from '../../src/lib/landscape/layout';
 import { textWidth } from '../../src/lib/render/text';
-import { createNodeElk } from '../../src/lib/layout/elk-node';
-import { layoutGraph } from '../../src/lib/layout/layout';
-import { formatLayout } from '../../src/lib/model/layout-format';
-import type { LayoutFile } from '../../src/lib/model/schema';
-import { project } from '../../src/lib/projections';
-import type { RenderGraph } from '../../src/lib/projections/types';
-import { edgeGeometry, clip, pointAlong } from '../../src/lib/render/edges';
 import { loadFixture, loadStrings } from './helpers';
 
-const elk = createNodeElk();
 const { model } = loadFixture();
-const g = (id: string) => project(model, id) as RenderGraph;
 type Box = { absX: number; absY: number; width: number; height: number };
 const overlap = (a: Box, b: Box) =>
 	a.absX < b.absX + b.width &&
@@ -98,7 +89,13 @@ describe('landscape layout', () => {
 			'  - { id: b-up, name: up, type: uuid, ref: b }'
 		].join('\n'),
 		's/c.model.yaml': 'id: c\nownedBy: s\nfields: [{ id: c-x, name: x, type: int }]\n',
-		's/d.model.yaml': 'id: d\nownedBy: s\nfields: [{ id: d-a, name: aId, type: uuid, ref: a }]\n'
+		's/d.model.yaml': [
+			'id: d',
+			'ownedBy: s',
+			'fields:',
+			'  - { id: d-a, name: aId, type: uuid, ref: a }',
+			'  - { id: d-c, name: cs, model: c, many: true }'
+		].join('\n')
 	}).model;
 
 	it('packs a level of tables as a masonry, each table at its own size', () => {
@@ -115,176 +112,14 @@ describe('landscape layout', () => {
 
 	it('links field refs to sibling tables, facing each other', () => {
 		const links = modelLinks(tables, layoutLandscape(tables));
-		expect(links.map((l) => [l.id, l.target, l.sourceHandle, l.targetHandle])).toEqual([
+		expect(links.map((l) => [l.id, l.kind, l.target, l.sourceHandle, l.targetHandle])).toEqual([
 			// A ref to a field ends on that field's row; a ref to a model on its name bar.
-			['b.b-a', 'a', 'out:b-a:l', 'in:a-id:r'],
-			['b.b-up', 'b', 'out:b-up:r', 'head:r'],
+			['b.b-a', 'ref', 'a', 'out:b-a:l', 'in:a-id:r'],
+			['b.b-up', 'ref', 'b', 'out:b-up:r', 'head:r'],
 			// Stacked in one column, so joined round the right.
-			['d.d-a', 'a', 'out:d-a:r', 'head:r']
+			['d.d-a', 'ref', 'a', 'out:d-a:r', 'head:r'],
+			// A held model ends on the held table's name bar.
+			['d.d-c', 'model', 'c', 'out:d-c:r', 'head:r']
 		]);
-	});
-});
-
-describe('ELK layout', () => {
-	it('lays out compound graphs with children inside their groups', async () => {
-		const pg = await layoutGraph(g('erp-modules'), undefined, elk);
-		const erp = pg.nodes.find((n) => n.node.id === 'erp')!;
-		const children = pg.nodes.filter((n) => n.node.parentId === 'erp');
-		expect(children).toHaveLength(2);
-		for (const child of children) {
-			expect(inside(child, erp)).toBe(true);
-			expect(child.absX - erp.absX).toBe(child.x);
-		}
-		expect(pg.nodes.every((n) => Number.isInteger(n.x) && Number.isInteger(n.absY))).toBe(true);
-	});
-
-	it('is deterministic', async () => {
-		const a = await layoutGraph(g('erp-modules'), undefined, elk);
-		const b = await layoutGraph(g('erp-modules'), undefined, elk);
-		expect(a.nodes.map((n) => [n.absX, n.absY])).toEqual(b.nodes.map((n) => [n.absX, n.absY]));
-	});
-
-	it('keeps pinned nodes exactly where the layout file says and moves others off them', async () => {
-		const base = await layoutGraph(g('landscape'), undefined, elk);
-		const webshop = base.nodes.find((n) => n.node.id === 'webshop')!;
-		const layout: LayoutFile = {
-			version: 1,
-			view: 'landscape',
-			nodes: { erp: { x: webshop.absX, y: webshop.absY, pinned: true } }
-		};
-		const pg = await layoutGraph(g('landscape'), layout, elk);
-		const erp = pg.nodes.find((n) => n.node.id === 'erp')!;
-		expect([erp.absX, erp.absY, erp.pinned]).toEqual([webshop.absX, webshop.absY, true]);
-		expect(pg.nodes.some((n) => n !== erp && overlap(n, erp))).toBe(false);
-	});
-
-	it('grows groups to contain pinned children and applies stored sizes', async () => {
-		const layout: LayoutFile = {
-			version: 1,
-			view: 'erp-modules',
-			nodes: {
-				orders: { x: 900, y: 500, pinned: true },
-				'order-api': { w: 300, h: 200 }
-			}
-		};
-		const pg = await layoutGraph(g('erp-modules'), layout, elk);
-		const erp = pg.nodes.find((n) => n.node.id === 'erp')!;
-		const orders = pg.nodes.find((n) => n.node.id === 'orders')!;
-		expect(orders.x).toBe(900);
-		expect(erp.width).toBeGreaterThanOrEqual(900 + orders.width);
-		expect(pg.nodes.find((n) => n.node.id === 'order-api')).toMatchObject({
-			width: 300,
-			height: 200
-		});
-	});
-
-	it('meets the performance target: 200 nested nodes in under a second', async () => {
-		const files: Record<string, string> = {
-			'views/v.view.yaml': 'views:\n  - { id: v, type: component }\n'
-		};
-		for (let s = 0; s < 20; s++) {
-			files[`s${s}/s${s}.system.yaml`] = `id: s${s}\n`;
-			for (let i = 0; i < 9; i++)
-				files[`s${s}/m${i}.module.yaml`] = `id: m${s}-${i}\nparent: s${s}\n`;
-		}
-		const graph = project(loadStrings(files).model, 'v') as RenderGraph;
-		expect(graph.nodes).toHaveLength(200);
-		await layoutGraph(graph, undefined, elk); // warm up the JIT
-		const t = performance.now();
-		await layoutGraph(graph, undefined, elk);
-		expect(performance.now() - t).toBeLessThan(1000);
-	}, 20_000);
-});
-
-describe('edge geometry', () => {
-	const a = { x: 0, y: 0, width: 100, height: 50 };
-	const b = { x: 300, y: 0, width: 100, height: 50 };
-
-	it('clips floating edges at the node outline', () => {
-		expect(clip(a, [300, 25])).toEqual([100, 25]);
-		expect(clip({ ...a, outline: 'diamond' }, [50, 200])).toEqual([50, 50]);
-		const geom = edgeGeometry({ source: a, target: b });
-		expect(geom.points).toEqual([
-			[100, 25],
-			[300, 25]
-		]);
-		expect(geom.label).toEqual([200, 25]);
-	});
-
-	it('uses the ELK route only while both ends are where ELK put them', () => {
-		const route: [number, number][] = [
-			[100, 25],
-			[200, 25],
-			[200, 30],
-			[300, 30]
-		];
-		expect(
-			edgeGeometry({ source: a, target: b, route, routeBoxes: { source: a, target: b } }).points
-		).toBe(route);
-		expect(
-			edgeGeometry({
-				source: { ...a, x: 10 },
-				target: b,
-				route,
-				routeBoxes: { source: a, target: b }
-			}).points
-		).not.toBe(route);
-	});
-
-	it('spreads parallel edges and loops self edges', () => {
-		const one = edgeGeometry({ source: a, target: b, parallel: { index: 0, count: 2 } });
-		const two = edgeGeometry({ source: a, target: b, parallel: { index: 1, count: 2 } });
-		expect(one.d).toContain('Q');
-		expect(one.label[1]).not.toBe(two.label[1]);
-		expect(edgeGeometry({ source: a, target: a }).d).toContain('C');
-	});
-
-	it('finds points along a polyline', () => {
-		expect(
-			pointAlong(
-				[
-					[0, 0],
-					[10, 0],
-					[10, 10]
-				],
-				0.75
-			)
-		).toEqual([10, 5]);
-	});
-});
-
-describe('layout file format', () => {
-	it('is stable: fixed key order, sorted entries, one line per entry', () => {
-		const text = formatLayout({
-			version: 1,
-			view: 'v',
-			nodes: { b: { pinned: true, y: 2, x: 1 }, a: { x: 5, y: 6, w: 10, h: 20, pinned: true } },
-			edges: {
-				'a->b#0': {
-					labelPos: 0.5,
-					points: [
-						[1, 2],
-						[3, 4]
-					]
-				}
-			}
-		});
-		expect(text).toBe(
-			[
-				'{',
-				'  "version": 1,',
-				'  "view": "v",',
-				'  "nodes": {',
-				'    "a": { "x": 5, "y": 6, "w": 10, "h": 20, "pinned": true },',
-				'    "b": { "x": 1, "y": 2, "pinned": true }',
-				'  },',
-				'  "edges": {',
-				'    "a->b#0": { "points": [[1, 2], [3, 4]], "labelPos": 0.5 }',
-				'  }',
-				'}',
-				''
-			].join('\n')
-		);
-		expect(JSON.parse(text).nodes.a.w).toBe(10);
 	});
 });

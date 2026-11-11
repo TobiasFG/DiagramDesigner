@@ -63,7 +63,8 @@ export const TABLE = {
 	check: '✓'
 };
 
-export type FieldColumn = 'name' | 'type' | 'required' | 'nullable' | 'constraints' | 'ref';
+export type FieldColumn =
+	'name' | 'type' | 'required' | 'nullable' | 'constraints' | 'ref' | 'from';
 
 export interface TableColumn {
 	key: FieldColumn;
@@ -87,6 +88,14 @@ export function refLabel(model: Model, id: string): string | undefined {
 	return `${model.elements.get(field.modelId)?.name}.${field.def.name}`;
 }
 
+/** A field's type: its primitive or the held model's name, with `[]` for a list. */
+export const typeText = (f: ModelField, label: (id: string) => string | undefined) =>
+	(f.model ? (label(f.model) ?? f.model) : (f.type ?? '')) + (f.many ? '[]' : '');
+
+/** Where a field's value comes from: its source fields, then how it is derived. */
+export const fromText = (f: ModelField, label: (id: string) => string | undefined) =>
+	[(f.from ?? []).map((id) => label(id) ?? id).join(', '), f.derived].filter((s) => s).join(' · ');
+
 /** An index's fields by name, in index order. */
 export const indexFields = (ix: ModelIndex, fields: ModelField[]) =>
 	ix.fields.map((id) => fields.find((f) => f.id === id)?.name ?? id).join(', ');
@@ -108,7 +117,10 @@ const badgesWidth = (labels: string[]) =>
  * Field columns. Required and nullable are always shown, so a blank reads as "no"; the
  * others only when some row has something in them.
  */
-function fieldColumns(fields: ModelField[], refText: (f: ModelField) => string): TableColumn[] {
+function fieldColumns(
+	fields: ModelField[],
+	label: (id: string) => string | undefined
+): TableColumn[] {
 	const text = (s: string) => textWidth(s, TABLE.row);
 	const defs: [FieldColumn, string, string | undefined, number[], boolean][] = [
 		[
@@ -121,7 +133,7 @@ function fieldColumns(fields: ModelField[], refText: (f: ModelField) => string):
 			}),
 			true
 		],
-		['type', 'Type', undefined, fields.map((f) => text(f.type)), true],
+		['type', 'Type', undefined, fields.map((f) => text(typeText(f, label))), true],
 		['required', 'Req', 'Required', [text(TABLE.check)], true],
 		['nullable', 'Null', 'Nullable', [text(TABLE.check)], true],
 		[
@@ -131,7 +143,20 @@ function fieldColumns(fields: ModelField[], refText: (f: ModelField) => string):
 			fields.map((f) => badgesWidth(f.constraints ?? [])),
 			false
 		],
-		['ref', 'References', undefined, fields.map((f) => text(refText(f))), false]
+		[
+			'ref',
+			'References',
+			undefined,
+			fields.map((f) => text(f.ref ? (label(f.ref) ?? '') : '')),
+			false
+		],
+		[
+			'from',
+			'Source',
+			'Where the value comes from',
+			fields.map((f) => text(fromText(f, label))),
+			false
+		]
 	];
 	return defs
 		.filter(([, , , ws, always]) => always || ws.some((w) => w > 0))
@@ -155,11 +180,11 @@ function tableLayout(
 	name: string,
 	def: Element,
 	owner: string | undefined,
-	refText: (f: ModelField) => string
+	label: (id: string) => string | undefined
 ): { size: Size; cols: TableColumn[] } {
 	const fields = def.fields ?? [];
 	const indexes = def.indexes ?? [];
-	const cols = fieldColumns(fields, refText);
+	const cols = fieldColumns(fields, label);
 	// The 2px is the card's border, which sits inside the box.
 	const width = Math.max(
 		textWidth(name, TABLE.title, true) + 2 * TABLE.pad,
@@ -247,9 +272,7 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 			size = { width: b.width + 2 * PAD, height: b.height + HEADER + PAD };
 		} else if (info?.def.kind === 'model') {
 			const owner = item.ref ? model.elements.get(info.parentId ?? '')?.name : undefined;
-			const t = tableLayout(info.name, info.def, owner, (f) =>
-				f.ref ? (refLabel(model, f.ref) ?? '') : ''
-			);
+			const t = tableLayout(info.name, info.def, owner, (id) => refLabel(model, id));
 			tables.set(item.id, t.cols);
 			size = t.size;
 		} else size = leafSize(info?.name ?? item.el);
@@ -311,9 +334,13 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 	return out;
 }
 
-/** A foreign key drawn as a line from the field's row to the referenced table. */
+/**
+ * A line from a field's row to another table: a foreign key (`ref`, arrow at the target) or
+ * a held model (`model`, diamond at the holder, UML composition).
+ */
 export interface ModelLink {
 	id: string;
+	kind: 'ref' | 'model';
 	source: string;
 	target: string;
 	/** `out:<field id>:l` or `:r`. */
@@ -324,8 +351,8 @@ export interface ModelLink {
 }
 
 /**
- * Lines for field refs whose target table sits in the same box, so they never cross a
- * boundary; other refs show only as text in the row. The ends face each other, and tables
+ * Lines for field refs and held models whose target table sits in the same box, so they
+ * never cross a boundary; others show only as text in the row. The ends face each other, and tables
  * stacked in one column (or a table referring to itself) are joined round the right side.
  */
 export function modelLinks(model: Model, boxes: LandscapeBox[]): ModelLink[] {
@@ -333,19 +360,21 @@ export function modelLinks(model: Model, boxes: LandscapeBox[]): ModelLink[] {
 	for (const b of boxes) {
 		if (!b.table) continue;
 		for (const f of model.elements.get(b.elementId)?.def.fields ?? []) {
-			if (!f.ref) continue;
-			const field = model.fields.get(f.ref);
-			const el = field?.modelId ?? f.ref;
+			const to = f.ref ?? f.model;
+			if (!to) continue;
+			const field = model.fields.get(to);
+			const el = field?.modelId ?? to;
 			const t = boxes.find((o) => o.table && o.parentId === b.parentId && o.elementId === el);
 			if (!t) continue;
-			const [from, to] =
+			const [from, side] =
 				t.absX >= b.absX + b.width ? 'rl' : t.absX + t.width <= b.absX ? 'lr' : 'rr';
 			out.push({
 				id: `${b.id}.${f.id}`,
+				kind: f.ref ? 'ref' : 'model',
 				source: b.id,
 				target: t.id,
 				sourceHandle: `out:${f.id}:${from}`,
-				targetHandle: field ? `in:${f.ref}:${to}` : `head:${to}`,
+				targetHandle: field ? `in:${field.def.id}:${side}` : `head:${side}`,
 				parentId: b.parentId
 			});
 		}

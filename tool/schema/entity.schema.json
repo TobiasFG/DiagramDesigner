@@ -41,7 +41,17 @@
             "type": "string"
           },
           "type": {
+            "description": "Primitive type; give either type or model",
             "type": "string"
+          },
+          "model": {
+            "description": "Id of a model this field holds (composition)",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "many": {
+            "description": "Holds a list of type or model",
+            "type": "boolean"
           },
           "pk": {
             "description": "Part of the primary key",
@@ -73,15 +83,30 @@
             "description": "Id of the model or field this field points at (foreign key)",
             "type": "string",
             "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "from": {
+            "description": "Ids of the fields this value comes from; omit for a source field",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$",
+              "description": "Kebab-case identifier"
+            }
+          },
+          "derived": {
+            "description": "How the value is computed or changed from its from fields",
+            "type": [
+              "string",
+              "number"
+            ]
           }
         },
         "required": [
           "id",
-          "name",
-          "type"
+          "name"
         ],
         "additionalProperties": false,
-        "description": "Model field (table column)"
+        "description": "Model field: a table column or an object property"
       }
     },
     "indexes": {

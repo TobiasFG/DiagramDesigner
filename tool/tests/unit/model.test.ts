@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { formatDiagnostic, hasErrors, type Diagnostic } from '../../src/lib/model/diagnostics';
-import { View } from '../../src/lib/model/schema';
 import { loadFixture, loadStrings } from './helpers';
 
 const codes = (diags: Diagnostic[]) => diags.map((d) => d.code).sort();
@@ -22,10 +21,6 @@ describe('fixture design', () => {
 		const checkout = model.elements.get('checkout')!;
 		expect(checkout.name).toBe('checkout');
 		expect(checkout.loc).toEqual({ file: 'model/webshop/checkout.module.yaml', path: [] });
-		expect(model.views.get('erp-modules')!.loc).toEqual({
-			file: 'views/views.view.yaml',
-			path: ['views', 1]
-		});
 	});
 });
 
@@ -83,23 +78,6 @@ describe('schema validation', () => {
 		const { model, diagnostics } = loadStrings({ 'notes.txt': 'x', 'README.md': '# x' });
 		expect(diagnostics).toEqual([]);
 		expect(model.files).toEqual([]);
-	});
-
-	it('reports unknown sections in view files', () => {
-		const { diagnostics } = loadStrings({ 'views/v.view.yaml': 'other: 1\n' });
-		expect(diagnostics.map((d) => d.message)).toEqual(['unknown section "other"']);
-	});
-
-	it('accepts the documented view example', () => {
-		expect(
-			View.safeParse({
-				id: 'v',
-				type: 'component',
-				include: ['shop.*'],
-				depth: 1,
-				layout: { direction: 'RIGHT' }
-			}).success
-		).toBe(true);
 	});
 });
 
@@ -229,6 +207,49 @@ describe('entity checks', () => {
 		expect(diagnostics.find((d) => d.code === 'not-a-model')!.line).toBe(6);
 	});
 
+	it('checks held models: exactly one of type and model, and the model must exist', () => {
+		const { diagnostics } = loadStrings({
+			's/s.system.yaml': 'id: s\n',
+			's/b.model.yaml': 'id: b\nownedBy: s\nfields: [{ id: b1, name: x, type: int }]\n',
+			's/a.model.yaml': [
+				'id: a',
+				'ownedBy: s',
+				'fields:',
+				'  - { id: f1, name: ok, model: b, many: true }',
+				'  - { id: f2, name: both, type: int, model: b }',
+				'  - { id: f3, name: none }',
+				'  - { id: f4, name: keyed, model: b, ref: b1 }',
+				'  - { id: f5, name: ghost, model: nope }',
+				'  - { id: f6, name: sys, model: s }'
+			].join('\n')
+		});
+		expect(codes(diagnostics)).toEqual([
+			'dangling-ref',
+			'field-type',
+			'field-type',
+			'field-type',
+			'not-a-model'
+		]);
+	});
+
+	it('checks lineage: from points at fields and never loops', () => {
+		const { diagnostics } = loadStrings({
+			's/s.system.yaml': 'id: s\n',
+			's/a.model.yaml': [
+				'id: a',
+				'ownedBy: s',
+				'fields:',
+				'  - { id: f1, name: src, type: int }',
+				'  - { id: f2, name: copy, type: int, from: [f1], derived: doubled }',
+				'  - { id: f3, name: self, type: int, from: [f3] }',
+				'  - { id: f4, name: model, type: int, from: [a] }',
+				'  - { id: f5, name: x, type: int, from: [f6] }',
+				'  - { id: f6, name: y, type: int, from: [f5] }'
+			].join('\n')
+		});
+		expect(codes(diagnostics)).toEqual(['dangling-ref', 'lineage-cycle', 'lineage-cycle']);
+	});
+
 	it('gives each system its own folder', () => {
 		const { diagnostics } = loadStrings({
 			'a/a.system.yaml': 'id: a\n',
@@ -262,24 +283,5 @@ describe('entity checks', () => {
 		expect(diagnostics).toHaveLength(1);
 		expect(diagnostics[0]).toMatchObject({ code: 'outside-system-folder', severity: 'warning' });
 		expect(hasErrors(diagnostics)).toBe(false);
-	});
-});
-
-describe('view and layout checks', () => {
-	it('checks views and layout files', () => {
-		const { diagnostics } = loadStrings({
-			'a/a.system.yaml': 'id: a\n',
-			'views/v.view.yaml':
-				'views:\n  - { id: v, type: flow }\n  - { id: w, type: component, scope: nope, include: [zzz] }\n  - { id: w, type: component }\n',
-			'layout/x.layout.json': '{ "version": 1, "view": "gone", "nodes": {} }'
-		});
-		expect(codes(diagnostics)).toEqual([
-			'dangling-ref',
-			'duplicate-id',
-			'layout-file-name',
-			'orphan-layout',
-			'unmatched-pattern',
-			'view-source'
-		]);
 	});
 });

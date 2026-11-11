@@ -12,10 +12,7 @@ Usage:
                                create an entity file with a generated id;
                                --parent is written as ownedBy for models
   sdv id [count]               print fresh ids, e.g. for model fields
-  sdv export [--view id]... [--format mermaid,svg,png] [--out dir] [--theme light|dark]
-  sdv export --check           exit 1 if committed exports differ from fresh ones
-  sdv md-sync <file.md>...     refresh <!-- sdv:view ... --> regions in Markdown
-  sdv schema [--out dir]       write JSON Schemas for model and view files
+  sdv schema [--out dir]       write the JSON Schema for entity files
 
 Options:
   --config <file>              config file (default: search for sdv.config.ts)
@@ -46,12 +43,8 @@ export async function main(
 		options: {
 			config: { type: 'string' },
 			root: { type: 'string' },
-			view: { type: 'string', multiple: true },
-			format: { type: 'string' },
 			out: { type: 'string' },
-			theme: { type: 'string' },
 			parent: { type: 'string' },
-			check: { type: 'boolean' },
 			quiet: { type: 'boolean', short: 'q' }
 		}
 	});
@@ -70,9 +63,7 @@ export async function main(
 			const errors = diags.filter((d) => d.severity === 'error').length;
 			const warnings = diags.length - errors;
 			if (!values.quiet) {
-				io.log(
-					`${design.model.files.length} files, ${design.model.views.size} views: ${errors} error(s), ${warnings} warning(s)`
-				);
+				io.log(`${design.model.files.length} files: ${errors} error(s), ${warnings} warning(s)`);
 			}
 			return hasErrors(diags) ? 1 : 0;
 		}
@@ -83,14 +74,6 @@ export async function main(
 		case 'id': {
 			const { runId } = await import('./new');
 			return runId(positionals, io);
-		}
-		case 'export': {
-			const { runExport } = await import('./export');
-			return runExport(config, values, io);
-		}
-		case 'md-sync': {
-			const { runMdSync } = await import('./md-sync');
-			return runMdSync(config, positionals, io, cwd);
 		}
 		case 'schema': {
 			const { runSchema } = await import('./schema');

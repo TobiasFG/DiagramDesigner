@@ -3,9 +3,9 @@ name: Tool
 
 on:
   push:
-    paths: ['tool/**', 'design/**', '.github/workflows/tool.yml']
+    paths: ['tool/**', 'examples/**', '.github/workflows/tool.yml']
   pull_request:
-    paths: ['tool/**', 'design/**', '.github/workflows/tool.yml']
+    paths: ['tool/**', 'examples/**', '.github/workflows/tool.yml']
 
 defaults:
   run:
@@ -24,5 +24,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run check
-      - name: Unit tests (coverage gate 80% lines for model, projections, export)
+      - name: Unit tests (coverage gate 80% lines for model and landscape)
         run: npm run test:coverage
+      - name: Validate the example design
+        run: node cli/bin.js validate --root ../examples/commerce

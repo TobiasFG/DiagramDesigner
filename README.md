@@ -19,16 +19,17 @@ Technical / deployment architecture
 
 ## Vision
 
-- **One canvas, one model.** Elements nest (system › container › component). Zooming in
+- **One canvas, one model.** Entities nest (system › module › logic-unit, model). Zooming in
   opens a box to show its children. Relationships between hidden children are folded into a
   single line between the visible parents, and split up again as you zoom in.
 - **Detail on demand.** Behavioural and data diagrams (flow, sequence, class, ER) are not
   part of the landscape layout. They attach to the element or connection they describe and
   open when you click or zoom in on it. If something sends an "Order", you can open the
   Order class/ER diagram from there.
-- **Data models live in their own place.** Class/ER models are kept together and can be
-  focused by domain in a separate view. The canvas references them, so one model can be
-  linked from many places and is edited in one place.
+- **Models are defined once.** A model (table, code object, API shape) has one owner and is
+  referenced elsewhere, so it is edited in one place.
+- **Change impact.** Fields record where their values come from, so altering or dropping a
+  field shows everything it affects across the landscape.
 - **AI generates, people fix.** The model is structured, validated text that an AI can
   produce or patch. The editor covers the small corrections people make without re-prompting:
   rename, reconnect a wrong line, add or remove a field, change a type.
@@ -39,33 +40,26 @@ Technical / deployment architecture
 
 ## Status
 
-- **Working:** the home page is a single canvas over the whole model. The layout is computed
-  once, and zooming only moves the camera: detail fades in and out in place. The deepest box
-  under the centre is the focus. Everything unrelated to it fades, and only its connections
-  are drawn. A consumer in focus shows the specific APIs it calls. A provider in focus shows
-  lines from its APIs to the consuming systems. Clicking a box or a line flies there.
-  `npm run dev:commerce` opens the development landscape in `examples/commerce/`: one file
-  per entity (`<name>.<kind>.yaml`), one folder per system.
-- **Not yet:** attaching flow, sequence and class/ER diagrams to elements and connections;
-  linking connections to data models; saving which boxes are open.
-- **Still the earlier prototype:** the six separate diagram types (component, class, object,
-  flow, pipeline, sequence) remain available through `npm run export` only. Which of them
-  survive, and how, is undecided.
+- **Working:** one canvas over the whole model. Layout is computed once; zooming only moves
+  the camera and fades detail in and out (systems › modules › models). Models render as
+  tables with keys, foreign-key and composition lines, and field lineage. Clicking selects.
+- **Open goals:** [docs/goals.md](docs/goals.md).
 
 ## How it works
 
-The YAML files under `design/` are the source of truth. The canvas is read-only; edit the
-files in a text editor and the canvas updates as you save.
+The design is a folder of YAML entity files, one per entity (`<name>.<kind>.yaml`), with
+one folder per system. They are the source of truth. The canvas is read-only: edit the files
+and the canvas updates on save.
 
 ```
-design/            model, views and layout
-docs/diagrams/     generated exports (Mermaid, SVG, PNG)
+examples/commerce/ development landscape (ERP, PIM, Webshop)
+docs/schema/       format reference, one cookbook per entity kind
+docs/goals.md      open goals
 tool/              the SvelteKit app and the `sdv` CLI
-sdv.config.ts      paths, export formats, theme
+sdv.config.ts      design root (examples/commerce by default), theme
 ```
 
-The schema in `tool/src/lib/model/schema.ts` is the reference for the model format, and
-`design/` contains a working example.
+`tool/src/lib/model/schema.ts` defines the format; `docs/schema/` explains it.
 
 ## Quick start
 
@@ -73,12 +67,7 @@ Requires Node 22.12+.
 
 ```sh
 npm install          # also installs tool/
-npm run dev          # http://localhost:5173
-npm run dev:commerce # the same, on examples/commerce
+npm run dev          # http://localhost:5173, on examples/commerce
 npm run validate     # schema and reference checks
-npm run export       # regenerate docs/diagrams
 npm test
 ```
-
-PNG export needs Chromium once:
-`npx --prefix tool playwright install chromium`.

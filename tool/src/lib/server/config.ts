@@ -45,12 +45,10 @@ export async function loadConfig(opts: LoadConfigOptions = {}): Promise<Resolved
 	const base = configFile ? path.dirname(configFile) : cwd;
 	const root = env.SDV_ROOT
 		? path.resolve(cwd, env.SDV_ROOT)
-		: path.resolve(base, user.root ?? 'design');
+		: path.resolve(base, user.root ?? 'examples/commerce');
 	return {
 		configFile,
 		root,
-		exportDir: path.resolve(base, user.exportDir ?? 'docs/diagrams'),
-		formats: user.formats ?? ['mermaid', 'svg'],
 		theme: user.theme ?? 'light'
 	};
 }

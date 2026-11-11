@@ -10,7 +10,7 @@ export function sha256(text: string): string {
 
 const SKIP_DIRS = new Set(['node_modules', '.git', '.svelte-kit']);
 
-/** Design-relative paths (forward slashes) of every model, view and layout file, sorted. */
+/** Design-relative paths (forward slashes) of every entity file, sorted. */
 export async function listDesignFiles(root: string): Promise<string[]> {
 	const out: string[] = [];
 	const walk = async (dir: string) => {

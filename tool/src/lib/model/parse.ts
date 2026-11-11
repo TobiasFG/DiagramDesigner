@@ -1,7 +1,7 @@
 import { isMap, isNode, isPair, isScalar, LineCounter, parseDocument, type Document } from 'yaml';
 import type { DataPath, Diagnostic } from './diagnostics';
 
-export type FileKind = 'view' | 'layout' | 'entity';
+export type FileKind = 'entity';
 
 const ENTITY_FILE = /\.([a-z][a-z0-9-]*)\.ya?ml$/;
 
@@ -11,8 +11,6 @@ export function entityKind(path: string): string | undefined {
 }
 
 export function fileKind(path: string): FileKind | null {
-	if (path.endsWith('.view.yaml') || path.endsWith('.view.yml')) return 'view';
-	if (path.endsWith('.layout.json')) return 'layout';
 	if (ENTITY_FILE.test(path)) return 'entity';
 	return null;
 }
@@ -27,7 +25,7 @@ export interface ParsedFile {
 	diagnostics: Diagnostic[];
 }
 
-/** Parses YAML (and JSON, which is a YAML subset) keeping the CST for source positions. */
+/** Parses YAML keeping the CST for source positions. */
 export function parseFile(path: string, text: string): ParsedFile {
 	const kind = fileKind(path);
 	if (!kind) throw new Error(`Not a design file: ${path}`);

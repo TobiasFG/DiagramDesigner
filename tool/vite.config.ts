@@ -36,14 +36,12 @@ export default defineConfig({
 	],
 	server: { host: 'localhost' },
 	preview: { host: 'localhost' },
-	worker: { format: 'es' },
 	test: {
 		include: ['tests/unit/**/*.test.ts'],
 		environment: 'node',
 		coverage: {
 			provider: 'v8',
-			include: ['src/lib/model/**', 'src/lib/projections/**', 'src/lib/export/**'],
-			exclude: ['src/lib/export/png.ts'],
+			include: ['src/lib/model/**', 'src/lib/landscape/**'],
 			thresholds: { lines: 80 }
 		}
 	}

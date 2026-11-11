@@ -1,15 +1,5 @@
 {
 	"yaml.schemas": {
-		"./tool/schema/model.schema.json": ["design/**/*.model.yaml", "design/**/*.model.yml"],
-		"./tool/schema/view.schema.json": ["design/**/*.view.yaml", "design/**/*.view.yml"]
-	},
-	"json.schemas": [
-		{
-			"fileMatch": ["design/layout/*.layout.json"],
-			"url": "./tool/schema/layout.schema.json"
-		}
-	],
-	"files.associations": {
-		"*.layout.json": "json"
+		"./tool/schema/entity.schema.json": ["**/*.{system,module,model,logic-unit,api}.yaml"]
 	}
 }

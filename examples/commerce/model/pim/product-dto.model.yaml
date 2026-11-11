@@ -1,0 +1,9 @@
+id: ck9foqxxus
+ownedBy: uyvk2xm74q
+name: Product DTO
+fields:
+  - { id: rlolo7ef1z, name: sku, type: string, required: true, from: [eqv7hinaf9] }
+  - { id: zl2zy8k6tl, name: locale, type: string, required: true, from: [ycb9d8ifip] }
+  - { id: qvf3hhym0y, name: title, type: string, required: true, from: [ed43t8vevv] }
+  - { id: f5pyjr5xh9, name: summary, type: string, nullable: true, from: [qxc7jxeb84], derived: first 160 chars }
+  - { id: ck0w3n1m4a, name: image, type: string, nullable: true, from: [x68v4rlkv4] }

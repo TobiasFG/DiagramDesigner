@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { EntityFile, LayoutFile, Text, ViewFile } from '../src/lib/model/schema';
+import { EntityFile, Text } from '../src/lib/model/schema';
 import type { CliIO } from './sdv';
 
 export function jsonSchemas(): Record<string, unknown> {
@@ -18,9 +18,7 @@ export function jsonSchemas(): Record<string, unknown> {
 		title
 	});
 	return {
-		'entity.schema.json': gen(EntityFile, 'System Design Viewer entity file'),
-		'view.schema.json': gen(ViewFile, 'System Design Viewer view file'),
-		'layout.schema.json': gen(LayoutFile, 'System Design Viewer layout file')
+		'entity.schema.json': gen(EntityFile, 'System Design Viewer entity file')
 	};
 }
 
