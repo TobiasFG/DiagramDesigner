@@ -1,6 +1,6 @@
 <script lang="ts" module>
 	import type { ModelField, ModelIndex } from '#lib/model/schema.ts';
-	import type { TableCols } from '#lib/landscape/layout.ts';
+	import type { TableColumn } from '#lib/landscape/layout.ts';
 
 	export interface LandscapeNodeData extends Record<string, unknown> {
 		name: string;
@@ -11,10 +11,10 @@
 		owner?: string;
 		fields?: ModelField[];
 		indexes?: ModelIndex[];
-		/** Column widths; set when the model is drawn as a table. */
-		table?: TableCols;
-		/** Names of the models that fields refer to, by id. */
-		refNames?: Record<string, string>;
+		/** Field columns; set when the model is drawn as a table. */
+		table?: TableColumn[];
+		/** What each field ref shows, by the model or field id it points at. */
+		refLabels?: Record<string, string>;
 	}
 </script>
 
@@ -22,13 +22,13 @@
 	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
 	import {
 		fieldRowY,
+		indexFields,
 		indexKind,
+		KEY_TITLES,
 		keysOf,
 		LEAF,
 		subtitle,
-		TABLE,
-		typeText,
-		type TableColumn
+		TABLE
 	} from '#lib/landscape/layout.ts';
 
 	let { data, width = 0, height = 0 }: NodeProps = $props();
@@ -36,9 +36,9 @@
 	// A closed group's name scales with the box, so a system reads the same at any size. A
 	// leaf is fitted round its name, so the name keeps one size.
 	const font = $derived(d.group ? Math.min(width * 0.085, height * 0.2) : LEAF.font);
-	const refName = (f: ModelField) => (f.ref ? d.refNames?.[f.ref] : undefined);
+	const refLabel = (f: ModelField) => (f.ref ? d.refLabels?.[f.ref] : undefined);
 	// The last column takes any width the card has to spare.
-	const template = (cols: TableColumn<unknown>[]) =>
+	const template = (cols: TableColumn[]) =>
 		cols
 			.map((c, i) => (i < cols.length - 1 ? `${c.width}px` : `minmax(${c.width}px, 1fr)`))
 			.join(' ');
@@ -74,51 +74,55 @@
 				<div
 					class="grid"
 					style:font-size="{TABLE.row}px"
-					style:grid-template-columns={template(cols.fields)}
+					style:grid-template-columns={template(cols)}
 				>
-					{#each cols.fields as c, ci (c.key)}
-						<div class="cell th" class:first={ci === 0} style:font-size="{TABLE.label}px">
+					{#each cols as c, ci (c.key)}
+						<div
+							class="cell th"
+							class:first={ci === 0}
+							class:mark={c.key === 'required' || c.key === 'nullable'}
+							style:font-size="{TABLE.label}px"
+							title={c.title}
+						>
 							{c.label}
 						</div>
 					{/each}
-					{#each d.fields as f (f.name)}
-						{#each cols.fields as c, ci (c.key)}
-							<div class="cell" class:first={ci === 0} class:muted={c.key === 'type'}>
-								{#if c.key === 'name'}{f.name}
-								{:else if c.key === 'type'}{typeText(f)}
-								{:else if c.key === 'keys'}
-									{#each keysOf(f) as k (k)}<span class="badge" style:font-size="{TABLE.badge}px"
-											>{k}</span
+					{#each d.fields as f (f.id)}
+						{#each cols as c, ci (c.key)}
+							<div
+								class="cell"
+								class:first={ci === 0}
+								class:muted={c.key === 'type'}
+								class:mark={c.key === 'required' || c.key === 'nullable'}
+							>
+								{#if c.key === 'name'}{f.name}{#each keysOf(f) as k (k)}<span
+											class="badge"
+											style:font-size="{TABLE.badge}px"
+											title={KEY_TITLES[k]}>{k}</span
 										>{/each}
-								{:else}{refName(f) ?? ''}{/if}
+								{:else if c.key === 'type'}{f.type}
+								{:else if c.key === 'required'}{f.required ? TABLE.check : ''}
+								{:else if c.key === 'nullable'}{f.nullable ? TABLE.check : ''}
+								{:else if c.key === 'constraints'}
+									{#each f.constraints ?? [] as k (k)}<span
+											class="badge plain"
+											style:font-size="{TABLE.badge}px">{k}</span
+										>{/each}
+								{:else}{refLabel(f) ?? ''}{/if}
 							</div>
 						{/each}
 					{/each}
 				</div>
 			{/if}
 			{#if d.indexes?.length}
-				<div
-					class="grid"
-					style:font-size="{TABLE.row}px"
-					style:grid-template-columns={template(cols.indexes)}
-				>
-					{#each cols.indexes as c, ci (c.key)}
-						<div class="cell th" class:first={ci === 0} style:font-size="{TABLE.label}px">
-							{c.label}
-						</div>
-					{/each}
+				<div class="list" style:font-size="{TABLE.row}px">
+					<div class="cell th" style:font-size="{TABLE.label}px">Indexes</div>
 					{#each d.indexes as ix (ix.name)}
-						{#each cols.indexes as c, ci (c.key)}
-							<div class="cell" class:first={ci === 0} class:muted={c.key === 'fields'}>
-								{#if c.key === 'name'}{ix.name}
-								{:else if c.key === 'fields'}{ix.fields.join(', ')}
-								{:else}<span
-										class="badge"
-										class:plain={!ix.unique}
-										style:font-size="{TABLE.badge}px">{indexKind(ix)}</span
-									>{/if}
-							</div>
-						{/each}
+						<div class="cell">
+							<span class="badge" class:plain={!ix.unique} style:font-size="{TABLE.badge}px"
+								>{indexKind(ix)}</span
+							>{ix.name}<span class="muted ix-fields">{indexFields(ix, d.fields ?? [])}</span>
+						</div>
 					{/each}
 				</div>
 			{/if}
@@ -126,21 +130,33 @@
 		<!-- Invisible line ends: one each side of the header, and of every row with a ref. -->
 		<Handle type="target" id="head:l" position={Position.Left} style="top:{TABLE.head / 2}px" />
 		<Handle type="target" id="head:r" position={Position.Right} style="top:{TABLE.head / 2}px" />
-		{#each d.fields ?? [] as f, i (f.name)}
+		{#each d.fields ?? [] as f, i (f.id)}
 			{#if f.ref}
 				<Handle
 					type="source"
-					id="{f.name}:l"
+					id="out:{f.id}:l"
 					position={Position.Left}
 					style="top:{fieldRowY(i)}px"
 				/>
 				<Handle
 					type="source"
-					id="{f.name}:r"
+					id="out:{f.id}:r"
 					position={Position.Right}
 					style="top:{fieldRowY(i)}px"
 				/>
 			{/if}
+			<Handle
+				type="target"
+				id="in:{f.id}:l"
+				position={Position.Left}
+				style="top:{fieldRowY(i)}px"
+			/>
+			<Handle
+				type="target"
+				id="in:{f.id}:r"
+				position={Position.Right}
+				style="top:{fieldRowY(i)}px"
+			/>
 		{/each}
 	{:else}
 		<div class="face" style:font-size="{font}px">
@@ -225,6 +241,16 @@
 		display: grid;
 		grid-auto-rows: var(--row);
 	}
+	.list {
+		display: grid;
+		grid-auto-rows: var(--row);
+	}
+	.list .cell {
+		border-left: none;
+	}
+	.ix-fields {
+		margin-left: 4px;
+	}
 	.cell {
 		display: flex;
 		align-items: center;
@@ -235,6 +261,9 @@
 	}
 	.cell.first {
 		border-left: none;
+	}
+	.cell.mark {
+		justify-content: center;
 	}
 	.th {
 		background: var(--sdv-model-header);

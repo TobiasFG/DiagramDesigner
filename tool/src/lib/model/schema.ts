@@ -93,14 +93,25 @@ export const PARENT_KINDS: Partial<Record<EntityFileKind, EntityFileKind[]>> = {
 	model: ['system', 'module']
 };
 
+/**
+ * `required` and `nullable` are independent: a required field must be given on create but
+ * may still be null when nullable; an optional field may be left out but, unless nullable,
+ * never holds null (a default fills it).
+ */
 export const ModelField = z
 	.strictObject({
+		id: Id.describe('Unique across the whole model, like entity ids; generate with `sdv id`'),
 		name: z.string(),
 		type: z.string(),
 		pk: z.boolean().optional().describe('Part of the primary key'),
 		pi: z.boolean().optional().describe('Part of the primary index'),
-		required: z.boolean().optional().describe('Must have a value; default optional'),
-		ref: Id.optional().describe('Id of the model this field points at (foreign key)')
+		required: z.boolean().optional().describe('Must be given a value on create; default false'),
+		nullable: z.boolean().optional().describe('May hold null; default false'),
+		constraints: z
+			.array(Text)
+			.optional()
+			.describe('Free-text rules such as unique, positive, max 200'),
+		ref: Id.optional().describe('Id of the model or field this field points at (foreign key)')
 	})
 	.describe('Model field (table column)');
 export type ModelField = z.infer<typeof ModelField>;
@@ -108,7 +119,7 @@ export type ModelField = z.infer<typeof ModelField>;
 export const ModelIndex = z
 	.strictObject({
 		name: z.string(),
-		fields: z.array(z.string()).min(1),
+		fields: z.array(Id).min(1).describe('Field ids, in index order'),
 		unique: z.boolean().optional()
 	})
 	.describe('Secondary index over model fields');

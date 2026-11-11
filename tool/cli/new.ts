@@ -9,7 +9,7 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
 const CHARS = LETTERS + '0123456789';
 
 /** 10 characters, starting with a letter so it is also a valid kebab-case id. */
-function generateId(): string {
+export function generateId(): string {
 	let id = LETTERS[randomInt(LETTERS.length)];
 	while (id.length < 10) id += CHARS[randomInt(CHARS.length)];
 	return id;
@@ -38,5 +38,16 @@ export async function runNew(
 	await fs.mkdir(path.dirname(abs), { recursive: true });
 	await fs.writeFile(abs, lines.join('\n') + '\n');
 	io.log(`created ${path.relative(cwd, abs)}`);
+	return 0;
+}
+
+/** Prints fresh ids, one per line, for model fields. */
+export function runId(positionals: string[], io: CliIO): number {
+	const count = positionals.length ? Number(positionals[0]) : 1;
+	if (!Number.isInteger(count) || count < 1) {
+		io.error('usage: sdv id [count]');
+		return 2;
+	}
+	for (let i = 0; i < count; i++) io.log(generateId());
 	return 0;
 }

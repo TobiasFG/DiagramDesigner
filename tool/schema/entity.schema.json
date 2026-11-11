@@ -32,6 +32,11 @@
       "items": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "Unique across the whole model, like entity ids; generate with `sdv id`"
+          },
           "name": {
             "type": "string"
           },
@@ -47,16 +52,31 @@
             "type": "boolean"
           },
           "required": {
-            "description": "Must have a value; default optional",
+            "description": "Must be given a value on create; default false",
             "type": "boolean"
           },
+          "nullable": {
+            "description": "May hold null; default false",
+            "type": "boolean"
+          },
+          "constraints": {
+            "description": "Free-text rules such as unique, positive, max 200",
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "number"
+              ]
+            }
+          },
           "ref": {
-            "description": "Id of the model this field points at (foreign key)",
+            "description": "Id of the model or field this field points at (foreign key)",
             "type": "string",
             "pattern": "^[a-z][a-z0-9-]*$"
           }
         },
         "required": [
+          "id",
           "name",
           "type"
         ],
@@ -77,8 +97,11 @@
             "minItems": 1,
             "type": "array",
             "items": {
-              "type": "string"
-            }
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$",
+              "description": "Kebab-case identifier"
+            },
+            "description": "Field ids, in index order"
           },
           "unique": {
             "type": "boolean"

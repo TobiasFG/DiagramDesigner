@@ -2,10 +2,10 @@ id: pk5eh2ufzk
 ownedBy: wajh6e6nvm
 name: Category
 fields:
-  - { name: id, type: uuid, pk: true }
-  - { name: slug, type: string, pi: true, required: true }
-  - { name: name, type: string, required: true }
-  - { name: parentId, type: uuid, ref: pk5eh2ufzk }
+  - { id: vh88y19z0i, name: id, type: uuid, pk: true }
+  - { id: hwgn52r6vg, name: slug, type: string, pi: true, required: true }
+  - { id: i5ornpx31d, name: name, type: string, required: true }
+  - { id: j2gckshq08, name: parentId, type: uuid, nullable: true, ref: vh88y19z0i }
 indexes:
-  - { name: ux_category_slug, fields: [slug], unique: true }
-  - { name: ix_category_parent, fields: [parentId] }
+  - { name: ux_category_slug, fields: [hwgn52r6vg], unique: true }
+  - { name: ix_category_parent, fields: [j2gckshq08] }

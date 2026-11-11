@@ -2,10 +2,10 @@ id: ahwod9ofrf
 ownedBy: d8mg4xc8ef
 name: Order Line
 fields:
-  - { name: orderId, type: uuid, pk: true, pi: true, ref: llns90zy3d }
-  - { name: lineNo, type: int, pk: true }
-  - { name: productId, type: uuid, required: true, ref: rksvyte4fo }
-  - { name: quantity, type: decimal, required: true }
-  - { name: unitPrice, type: decimal, required: true }
+  - { id: n5g57gkusw, name: orderId, type: uuid, pk: true, pi: true, required: true, ref: jxhrrx2cmz }
+  - { id: m51oefdwko, name: lineNo, type: int, pk: true, required: true, constraints: [positive] }
+  - { id: epto5lpyce, name: productId, type: uuid, required: true, ref: j6holg5xo1 }
+  - { id: i2i0i6v498, name: quantity, type: decimal, required: true, constraints: [positive] }
+  - { id: w4ka1w5qkb, name: unitPrice, type: decimal, required: true, constraints: [min 0] }
 indexes:
-  - { name: ix_order_line_product, fields: [productId] }
+  - { name: ix_order_line_product, fields: [epto5lpyce] }

@@ -19,8 +19,8 @@ export interface LandscapeBox {
 	absY: number;
 	width: number;
 	height: number;
-	/** Column widths, for a model drawn as a table. */
-	table?: TableCols;
+	/** Field columns, for a model drawn as a table. */
+	table?: TableColumn[];
 }
 
 interface Size {
@@ -57,32 +57,39 @@ export const TABLE = {
 	head: 48,
 	/** Side padding in every cell. */
 	pad: 10,
-	/** Space between two badges in a cell. */
-	badgeGap: 4
+	/** Space between two badges, or a name and its badges, in a cell. */
+	badgeGap: 4,
+	/** Mark in the required and nullable columns. */
+	check: '✓'
 };
 
-export type FieldColumn = 'name' | 'type' | 'keys' | 'ref';
-export type IndexColumn = 'name' | 'fields' | 'kind';
+export type FieldColumn = 'name' | 'type' | 'required' | 'nullable' | 'constraints' | 'ref';
 
-export interface TableColumn<K> {
-	key: K;
+export interface TableColumn {
+	key: FieldColumn;
 	label: string;
+	/** Hover text for a short label. */
+	title?: string;
 	width: number;
 }
 
-/** A model's two tables. A column only appears when some row has something in it. */
-export interface TableCols {
-	fields: TableColumn<FieldColumn>[];
-	indexes: TableColumn<IndexColumn>[];
-}
+/** Badges after a field's name. */
+export const keysOf = (f: ModelField) => [f.pk && 'PK', f.pi && 'PI'].filter((k) => k) as string[];
 
-export const keysOf = (f: ModelField) =>
-	[f.pk && 'Primary key', f.pi && 'Primary index'].filter((k) => k) as string[];
-
-/** Optional fields end in `?`. A primary key is always required. */
-export const typeText = (f: ModelField) => (f.required || f.pk ? f.type : `${f.type}?`);
+export const KEY_TITLES: Record<string, string> = { PK: 'Primary key', PI: 'Primary index' };
 
 export const indexKind = (ix: ModelIndex) => (ix.unique ? 'Unique' : 'Index');
+
+/** What a field ref shows: the model's name, or `Model.field` for a ref to a field. */
+export function refLabel(model: Model, id: string): string | undefined {
+	const field = model.fields.get(id);
+	if (!field) return model.elements.get(id)?.name;
+	return `${model.elements.get(field.modelId)?.name}.${field.def.name}`;
+}
+
+/** An index's fields by name, in index order. */
+export const indexFields = (ix: ModelIndex, fields: ModelField[]) =>
+	ix.fields.map((id) => fields.find((f) => f.id === id)?.name ?? id).join(', ');
 
 /** Line under a model's name: its kind, plus the owner for a reference. */
 export const subtitle = (owner?: string) => (owner ? `Model · owned by ${owner}` : 'Model');
@@ -97,44 +104,68 @@ const badgesWidth = (labels: string[]) =>
 		0
 	);
 
-function columns<K>(defs: [K, string, number[]][]): TableColumn<K>[] {
+/**
+ * Field columns. Required and nullable are always shown, so a blank reads as "no"; the
+ * others only when some row has something in them.
+ */
+function fieldColumns(fields: ModelField[], refText: (f: ModelField) => string): TableColumn[] {
+	const text = (s: string) => textWidth(s, TABLE.row);
+	const defs: [FieldColumn, string, string | undefined, number[], boolean][] = [
+		[
+			'name',
+			'Name',
+			undefined,
+			fields.map((f) => {
+				const keys = keysOf(f);
+				return text(f.name) + (keys.length ? TABLE.badgeGap + badgesWidth(keys) : 0);
+			}),
+			true
+		],
+		['type', 'Type', undefined, fields.map((f) => text(f.type)), true],
+		['required', 'Req', 'Required', [text(TABLE.check)], true],
+		['nullable', 'Null', 'Nullable', [text(TABLE.check)], true],
+		[
+			'constraints',
+			'Constraints',
+			undefined,
+			fields.map((f) => badgesWidth(f.constraints ?? [])),
+			false
+		],
+		['ref', 'References', undefined, fields.map((f) => text(refText(f))), false]
+	];
 	return defs
-		.filter(([, , ws]) => ws.some((w) => w > 0))
-		.map(([key, label, ws]) => ({
+		.filter(([, , , ws, always]) => always || ws.some((w) => w > 0))
+		.map(([key, label, title, ws]) => ({
 			key,
 			label,
+			title,
 			width: Math.max(textWidth(label, TABLE.label, true), ...ws) + 2 * TABLE.pad
 		}));
 }
+
+/** One index per row: its kind badge, its name, then its fields. */
+const indexWidth = (ix: ModelIndex, fields: ModelField[]) =>
+	badgesWidth([indexKind(ix)]) +
+	2 * TABLE.badgeGap +
+	textWidth(ix.name, TABLE.row) +
+	textWidth(`  ${indexFields(ix, fields)}`, TABLE.row) +
+	2 * TABLE.pad;
 
 function tableLayout(
 	name: string,
 	def: Element,
 	owner: string | undefined,
-	nameOf: (id: string) => string | undefined
-): { size: Size; cols: TableCols } {
+	refText: (f: ModelField) => string
+): { size: Size; cols: TableColumn[] } {
 	const fields = def.fields ?? [];
 	const indexes = def.indexes ?? [];
-	const cols: TableCols = {
-		fields: columns<FieldColumn>([
-			['name', 'Field', fields.map((f) => textWidth(f.name, TABLE.row))],
-			['type', 'Type', fields.map((f) => textWidth(typeText(f), TABLE.row))],
-			['keys', 'Keys', fields.map((f) => badgesWidth(keysOf(f)))],
-			['ref', 'References', fields.map((f) => textWidth((f.ref && nameOf(f.ref)) || '', TABLE.row))]
-		]),
-		indexes: columns<IndexColumn>([
-			['name', 'Index', indexes.map((ix) => textWidth(ix.name, TABLE.row))],
-			['fields', 'Fields', indexes.map((ix) => textWidth(ix.fields.join(', '), TABLE.row))],
-			['kind', 'Kind', indexes.map((ix) => badgesWidth([indexKind(ix)]))]
-		])
-	};
-	const sum = (cs: { width: number }[]) => cs.reduce((w, c) => w + c.width, 0);
+	const cols = fieldColumns(fields, refText);
 	// The 2px is the card's border, which sits inside the box.
 	const width = Math.max(
 		textWidth(name, TABLE.title, true) + 2 * TABLE.pad,
 		textWidth(subtitle(owner), TABLE.note) + 2 * TABLE.pad,
-		fields.length ? sum(cols.fields) : 0,
-		indexes.length ? sum(cols.indexes) : 0
+		fields.length ? cols.reduce((w, c) => w + c.width, 0) : 0,
+		...indexes.map((ix) => indexWidth(ix, fields))
 	);
 	const rows = (n: number) => (n ? n + 1 : 0);
 	const height = TABLE.head + (rows(fields.length) + rows(indexes.length)) * TABLE.rowHeight;
@@ -192,7 +223,7 @@ function masonry(sizes: Size[], cols: number, gap: number): Block {
 export function layoutLandscape(model: Model): LandscapeBox[] {
 	const out: LandscapeBox[] = [];
 	const sizes = new Map<string, Size>();
-	const tables = new Map<string, TableCols>();
+	const tables = new Map<string, TableColumn[]>();
 	// A reference is drawn as a closed box, so it never has boxes inside.
 	const kidsOf = (item: Item): Item[] => {
 		const info = model.elements.get(item.el);
@@ -216,7 +247,9 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 			size = { width: b.width + 2 * PAD, height: b.height + HEADER + PAD };
 		} else if (info?.def.kind === 'model') {
 			const owner = item.ref ? model.elements.get(info.parentId ?? '')?.name : undefined;
-			const t = tableLayout(info.name, info.def, owner, (id) => model.elements.get(id)?.name);
+			const t = tableLayout(info.name, info.def, owner, (f) =>
+				f.ref ? (refLabel(model, f.ref) ?? '') : ''
+			);
 			tables.set(item.id, t.cols);
 			size = t.size;
 		} else size = leafSize(info?.name ?? item.el);
@@ -283,9 +316,9 @@ export interface ModelLink {
 	id: string;
 	source: string;
 	target: string;
-	/** `<field>:l` or `<field>:r`. */
+	/** `out:<field id>:l` or `:r`. */
 	sourceHandle: string;
-	/** `head:l` or `head:r`. */
+	/** `head:l` or `head:r` for a ref to a model; `in:<field id>:l` or `:r` for a field. */
 	targetHandle: string;
 	parentId?: string;
 }
@@ -300,17 +333,19 @@ export function modelLinks(model: Model, boxes: LandscapeBox[]): ModelLink[] {
 	for (const b of boxes) {
 		if (!b.table) continue;
 		for (const f of model.elements.get(b.elementId)?.def.fields ?? []) {
-			const t =
-				f.ref && boxes.find((o) => o.table && o.parentId === b.parentId && o.elementId === f.ref);
+			if (!f.ref) continue;
+			const field = model.fields.get(f.ref);
+			const el = field?.modelId ?? f.ref;
+			const t = boxes.find((o) => o.table && o.parentId === b.parentId && o.elementId === el);
 			if (!t) continue;
 			const [from, to] =
 				t.absX >= b.absX + b.width ? 'rl' : t.absX + t.width <= b.absX ? 'lr' : 'rr';
 			out.push({
-				id: `${b.id}.${f.name}`,
+				id: `${b.id}.${f.id}`,
 				source: b.id,
 				target: t.id,
-				sourceHandle: `${f.name}:${from}`,
-				targetHandle: `head:${to}`,
+				sourceHandle: `out:${f.id}:${from}`,
+				targetHandle: field ? `in:${f.ref}:${to}` : `head:${to}`,
 				parentId: b.parentId
 			});
 		}

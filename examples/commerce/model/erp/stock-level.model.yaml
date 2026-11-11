@@ -2,8 +2,8 @@ id: z507p6fu7v
 ownedBy: up28wl6i9p
 name: Stock Level
 fields:
-  - { name: productId, type: uuid, pk: true, pi: true, ref: rksvyte4fo }
-  - { name: warehouse, type: string, pk: true }
-  - { name: onHand, type: decimal, required: true }
-  - { name: reserved, type: decimal, required: true }
-  - { name: updatedAt, type: datetime, required: true }
+  - { id: on60ji7dov, name: productId, type: uuid, pk: true, pi: true, required: true, ref: j6holg5xo1 }
+  - { id: n2ij7hp7nc, name: warehouse, type: string, pk: true, required: true }
+  - { id: bvr0hth4v4, name: onHand, type: decimal, required: true, constraints: [min 0] }
+  - { id: xtqs0jed9v, name: reserved, type: decimal, required: true, constraints: [min 0] }
+  - { id: h5gm5lp76r, name: updatedAt, type: datetime, required: true }

@@ -14,7 +14,7 @@
 	import { design } from '#lib/client/store.svelte.ts';
 	import { theme } from '#lib/client/theme.svelte.ts';
 	import type { ViewState } from '#lib/client/view-state.svelte.ts';
-	import { layoutLandscape, modelLinks } from '#lib/landscape/layout.ts';
+	import { layoutLandscape, modelLinks, refLabel } from '#lib/landscape/layout.ts';
 	import LandscapeNode, { type LandscapeNodeData } from './LandscapeNode.svelte';
 
 	/** The whole model, fully expanded. It is laid out once; zooming only changes opacity. */
@@ -79,10 +79,10 @@
 					fields: info.def.fields,
 					indexes: info.def.indexes,
 					table: b.table,
-					refNames: Object.fromEntries(
+					refLabels: Object.fromEntries(
 						(info.def.fields ?? []).flatMap((f) => {
-							const name = f.ref && el(f.ref)?.name;
-							return name ? [[f.ref, name]] : [];
+							const label = f.ref && refLabel(design.model, f.ref);
+							return label ? [[f.ref, label]] : [];
 						})
 					)
 				} satisfies LandscapeNodeData

@@ -5,6 +5,7 @@ import type {
 	EntityFileKind,
 	Flow,
 	GroupStep,
+	ModelField,
 	Interaction,
 	LayoutFile,
 	MessageStep,
@@ -75,10 +76,20 @@ export interface LayoutInfo {
 	data: LayoutFile;
 }
 
-export type GlobalKind = 'element' | 'class' | 'object' | 'flow' | 'pipeline' | 'interaction';
+/** A model field, found by its id. */
+export interface FieldInfo {
+	def: ModelField;
+	/** Id of the model the field belongs to. */
+	modelId: string;
+	loc: Loc;
+}
+
+export type GlobalKind =
+	'element' | 'field' | 'class' | 'object' | 'flow' | 'pipeline' | 'interaction';
 
 export interface Model {
 	elements: Map<string, ElementInfo>;
+	fields: Map<string, FieldInfo>;
 	rootElementIds: string[];
 	relationships: RelationshipInfo[];
 	classes: Map<string, EntityInfo<ClassDef>>;
@@ -142,6 +153,7 @@ export function walkSteps(
 export function buildModel(files: Record<string, unknown>, locate?: Locator): Model {
 	const model: Model = {
 		elements: new Map(),
+		fields: new Map(),
 		rootElementIds: [],
 		relationships: [],
 		classes: new Map(),
@@ -270,23 +282,29 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 			if (models) diag('error', 'model-only', `a model cannot list models`, loc, 'models');
 			const names = new Set<string>();
 			value.fields?.forEach((f, i) => {
+				const fieldLoc = at(loc, 'fields', i);
+				if (claim(f.id, 'field', fieldLoc))
+					model.fields.set(f.id, { def: f, modelId: value.id, loc: fieldLoc });
 				if (names.has(f.name))
+					diag('error', 'duplicate-field', `field "${f.name}" is defined twice`, fieldLoc, 'name');
+				names.add(f.name);
+				if (f.pk && f.nullable)
 					diag(
 						'error',
-						'duplicate-field',
-						`field "${f.name}" is defined twice`,
-						at(loc, 'fields', i),
-						'name'
+						'nullable-key',
+						`key field "${f.name}" cannot be nullable`,
+						fieldLoc,
+						'nullable'
 					);
-				names.add(f.name);
 			});
+			const own = new Set(value.fields?.map((f) => f.id));
 			value.indexes?.forEach((ix, i) =>
 				ix.fields.forEach((f, j) => {
-					if (!names.has(f))
+					if (!own.has(f))
 						diag(
 							'error',
 							'unknown-field',
-							`index "${ix.name}" uses unknown field "${f}"`,
+							`index "${ix.name}" uses "${f}", which is not a field of this model`,
 							at(loc, 'indexes', i, 'fields', j)
 						);
 				})
@@ -299,6 +317,7 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 	for (const info of entities) {
 		info.def.fields?.forEach((f, i) => {
 			if (!f.ref) return;
+			if (model.fields.has(f.ref)) return;
 			const target = model.elements.get(f.ref);
 			const refLoc = at(info.loc, 'fields', i);
 			if (!target)
@@ -313,7 +332,7 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 				diag(
 					'error',
 					'not-a-model',
-					`field "${f.name}" refers to ${target.def.kind} "${target.name}", not a model`,
+					`field "${f.name}" refers to ${target.def.kind} "${target.name}", not a model or field`,
 					refLoc,
 					'ref'
 				);

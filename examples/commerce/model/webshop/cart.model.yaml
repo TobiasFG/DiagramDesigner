@@ -2,9 +2,9 @@ id: uzi5stl672
 ownedBy: xmv85uqqsk
 name: Cart
 fields:
-  - { name: id, type: uuid, pk: true }
-  - { name: sessionId, type: string, pi: true, required: true }
-  - { name: customerId, type: uuid, ref: li65oa3wga }
-  - { name: createdAt, type: datetime, required: true }
+  - { id: tlqmqqmcv9, name: id, type: uuid, pk: true }
+  - { id: z8tdfi6pyu, name: sessionId, type: string, pi: true, required: true }
+  - { id: owts056ek0, name: customerId, type: uuid, nullable: true, ref: wpbo4l3k21 }
+  - { id: mh2hhcz57z, name: createdAt, type: datetime, required: true }
 indexes:
-  - { name: ix_cart_customer, fields: [customerId] }
+  - { name: ix_cart_customer, fields: [owts056ek0] }

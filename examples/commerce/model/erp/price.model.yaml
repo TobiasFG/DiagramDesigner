@@ -2,11 +2,11 @@ id: gldpadizd1
 ownedBy: tz83lkox5o
 name: Price
 fields:
-  - { name: id, type: uuid, pk: true }
-  - { name: productId, type: uuid, pi: true, required: true, ref: rksvyte4fo }
-  - { name: currency, type: string, required: true }
-  - { name: amount, type: decimal, required: true }
-  - { name: validFrom, type: date, required: true }
-  - { name: validTo, type: date }
+  - { id: qjcaxl0h3k, name: id, type: uuid, pk: true }
+  - { id: jbvv4pyvrg, name: productId, type: uuid, pi: true, required: true, ref: j6holg5xo1 }
+  - { id: wx2pppptwu, name: currency, type: string, required: true, constraints: [ISO 4217] }
+  - { id: qk2q634whz, name: amount, type: decimal, required: true, constraints: [min 0] }
+  - { id: uuulnhk5sz, name: validFrom, type: date, required: true }
+  - { id: oszj5510xs, name: validTo, type: date, nullable: true, constraints: [after validFrom] }
 indexes:
-  - { name: ux_price_product_period, fields: [productId, currency, validFrom], unique: true }
+  - { name: ux_price_product_period, fields: [jbvv4pyvrg, wx2pppptwu, uuulnhk5sz], unique: true }

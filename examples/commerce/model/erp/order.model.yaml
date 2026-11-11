@@ -2,13 +2,13 @@ id: llns90zy3d
 ownedBy: d8mg4xc8ef
 name: Order
 fields:
-  - { name: id, type: uuid, pk: true }
-  - { name: orderNo, type: string, pi: true, required: true }
-  - { name: customerId, type: uuid, required: true, ref: li65oa3wga }
-  - { name: status, type: string, required: true }
-  - { name: placedAt, type: datetime, required: true }
-  - { name: total, type: decimal, required: true }
-  - { name: note, type: string }
+  - { id: jxhrrx2cmz, name: id, type: uuid, pk: true }
+  - { id: wuv2sdo0fq, name: orderNo, type: string, pi: true, required: true }
+  - { id: xbsmlwkerd, name: customerId, type: uuid, required: true, ref: wpbo4l3k21 }
+  - { id: x200hntj83, name: status, type: string, required: true }
+  - { id: kcidzu5v59, name: placedAt, type: datetime, required: true }
+  - { id: wmzkfdam0u, name: total, type: decimal, required: true, constraints: [min 0] }
+  - { id: p2vo4bbov0, name: note, type: string, nullable: true }
 indexes:
-  - { name: ux_order_no, fields: [orderNo], unique: true }
-  - { name: ix_order_customer, fields: [customerId, placedAt] }
+  - { name: ux_order_no, fields: [wuv2sdo0fq], unique: true }
+  - { name: ix_order_customer, fields: [xbsmlwkerd, kcidzu5v59] }

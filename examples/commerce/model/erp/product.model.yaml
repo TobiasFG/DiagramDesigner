@@ -2,10 +2,10 @@ id: rksvyte4fo
 ownedBy: ywl0a6j1ev
 name: Product
 fields:
-  - { name: id, type: uuid, pk: true }
-  - { name: sku, type: string, pi: true, required: true }
-  - { name: name, type: string, required: true }
-  - { name: unit, type: string, required: true }
-  - { name: discontinuedAt, type: date }
+  - { id: j6holg5xo1, name: id, type: uuid, pk: true }
+  - { id: qcyr8lmcb8, name: sku, type: string, pi: true, required: true }
+  - { id: kvigk5koha, name: name, type: string, required: true }
+  - { id: b9papgsfq6, name: unit, type: string, required: true }
+  - { id: e6wjf7p003, name: discontinuedAt, type: date, nullable: true }
 indexes:
-  - { name: ux_product_sku, fields: [sku], unique: true }
+  - { name: ux_product_sku, fields: [qcyr8lmcb8], unique: true }

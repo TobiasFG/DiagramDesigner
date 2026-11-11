@@ -189,34 +189,43 @@ describe('entity checks', () => {
 
 	it('checks model fields and indexes', () => {
 		const { diagnostics } = loadStrings({
-			's/s.system.yaml': 'id: s\nfields: [{ name: x, type: int }]\n',
+			's/s.system.yaml': 'id: s\nfields: [{ id: x, name: x, type: int }]\n',
 			's/a.model.yaml': [
 				'id: a',
 				'ownedBy: s',
 				'fields:',
-				'  - { name: id, type: uuid, pk: true, pi: true }',
-				'  - { name: id, type: int, required: true }',
+				'  - { id: f1, name: id, type: uuid, pk: true, pi: true, nullable: true }',
+				'  - { id: f2, name: id, type: int, required: true }',
 				'indexes:',
-				'  - { name: ix, fields: [id, nope], unique: true }'
-			].join('\n')
+				'  - { name: ix, fields: [f1, nope, g1], unique: true }'
+			].join('\n'),
+			's/b.model.yaml': 'id: b\nownedBy: s\nfields: [{ id: g1, name: x, type: int }]\n'
 		});
-		expect(codes(diagnostics)).toEqual(['duplicate-field', 'model-only', 'unknown-field']);
+		expect(codes(diagnostics)).toEqual([
+			'duplicate-field',
+			'model-only',
+			'nullable-key',
+			'unknown-field',
+			'unknown-field'
+		]);
 		expect(diagnostics.find((d) => d.code === 'unknown-field')!.line).toBe(7);
 	});
 
-	it('checks that field refs point at models', () => {
+	it('checks that field refs point at models or fields, by id', () => {
 		const { diagnostics } = loadStrings({
 			's/s.system.yaml': 'id: s\n',
 			's/a.model.yaml': [
 				'id: a',
 				'ownedBy: s',
 				'fields:',
-				'  - { name: self, type: uuid, ref: a }',
-				'  - { name: ghost, type: uuid, ref: nope }',
-				'  - { name: sys, type: uuid, ref: s }'
+				'  - { id: f1, name: self, type: uuid, ref: a }',
+				'  - { id: f2, name: ghost, type: uuid, ref: nope }',
+				'  - { id: f3, name: sys, type: uuid, ref: s }',
+				'  - { id: f4, name: up, type: uuid, ref: f1 }',
+				'  - { id: a, name: clash, type: uuid }'
 			].join('\n')
 		});
-		expect(codes(diagnostics)).toEqual(['dangling-ref', 'not-a-model']);
+		expect(codes(diagnostics)).toEqual(['dangling-ref', 'duplicate-id', 'not-a-model']);
 		expect(diagnostics.find((d) => d.code === 'not-a-model')!.line).toBe(6);
 	});
 

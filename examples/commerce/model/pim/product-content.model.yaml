@@ -2,8 +2,8 @@ id: v5kp3b4k9m
 ownedBy: rtvuk3d9qg
 name: Product Content
 fields:
-  - { name: sku, type: string, pk: true, pi: true }
-  - { name: locale, type: string, pk: true }
-  - { name: title, type: string, required: true }
-  - { name: description, type: text }
-  - { name: imageUrl, type: string }
+  - { id: eqv7hinaf9, name: sku, type: string, pk: true, pi: true, required: true }
+  - { id: ycb9d8ifip, name: locale, type: string, pk: true, required: true }
+  - { id: ed43t8vevv, name: title, type: string, required: true }
+  - { id: qxc7jxeb84, name: description, type: text, nullable: true }
+  - { id: x68v4rlkv4, name: imageUrl, type: string, nullable: true }

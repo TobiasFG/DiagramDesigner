@@ -66,7 +66,10 @@ describe('landscape layout', () => {
 	});
 
 	it('draws a referenced model inside the referencing entity too, sized as a table', () => {
-		const fields = Array.from({ length: 12 }, (_, i) => `  - { name: f${i}, type: int }`);
+		const fields = Array.from(
+			{ length: 12 },
+			(_, i) => `  - { id: f${i}, name: f${i}, type: int }`
+		);
 		const boxes = layoutLandscape(
 			loadStrings({
 				's/s.system.yaml': 'id: s\n',
@@ -85,17 +88,17 @@ describe('landscape layout', () => {
 
 	const tables = loadStrings({
 		's/s.system.yaml': 'id: s\n',
-		's/a.model.yaml': 'id: a\nownedBy: s\nfields: [{ name: id, type: uuid, pk: true }]\n',
+		's/a.model.yaml': 'id: a\nownedBy: s\nfields: [{ id: a-id, name: id, type: uuid, pk: true }]\n',
 		's/b.model.yaml': [
 			'id: b',
 			'ownedBy: s',
 			'fields:',
-			...Array.from({ length: 8 }, (_, i) => `  - { name: f${i}, type: int }`),
-			'  - { name: aId, type: uuid, ref: a }',
-			'  - { name: up, type: uuid, ref: b }'
+			...Array.from({ length: 8 }, (_, i) => `  - { id: b${i}, name: f${i}, type: int }`),
+			'  - { id: b-a, name: aId, type: uuid, ref: a-id }',
+			'  - { id: b-up, name: up, type: uuid, ref: b }'
 		].join('\n'),
-		's/c.model.yaml': 'id: c\nownedBy: s\nfields: [{ name: x, type: int }]\n',
-		's/d.model.yaml': 'id: d\nownedBy: s\nfields: [{ name: aId, type: uuid, ref: a }]\n'
+		's/c.model.yaml': 'id: c\nownedBy: s\nfields: [{ id: c-x, name: x, type: int }]\n',
+		's/d.model.yaml': 'id: d\nownedBy: s\nfields: [{ id: d-a, name: aId, type: uuid, ref: a }]\n'
 	}).model;
 
 	it('packs a level of tables as a masonry, each table at its own size', () => {
@@ -113,10 +116,11 @@ describe('landscape layout', () => {
 	it('links field refs to sibling tables, facing each other', () => {
 		const links = modelLinks(tables, layoutLandscape(tables));
 		expect(links.map((l) => [l.id, l.target, l.sourceHandle, l.targetHandle])).toEqual([
-			['b.aId', 'a', 'aId:l', 'head:r'],
-			['b.up', 'b', 'up:r', 'head:r'],
+			// A ref to a field ends on that field's row; a ref to a model on its name bar.
+			['b.b-a', 'a', 'out:b-a:l', 'in:a-id:r'],
+			['b.b-up', 'b', 'out:b-up:r', 'head:r'],
 			// Stacked in one column, so joined round the right.
-			['d.aId', 'a', 'aId:r', 'head:r']
+			['d.d-a', 'a', 'out:d-a:r', 'head:r']
 		]);
 	});
 });

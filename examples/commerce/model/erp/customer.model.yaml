@@ -2,10 +2,10 @@ id: li65oa3wga
 ownedBy: fghfo41tiv
 name: Customer
 fields:
-  - { name: id, type: uuid, pk: true }
-  - { name: customerNo, type: string, pi: true, required: true }
-  - { name: name, type: string, required: true }
-  - { name: email, type: string }
-  - { name: vatNo, type: string }
+  - { id: wpbo4l3k21, name: id, type: uuid, pk: true }
+  - { id: b054nt3ktu, name: customerNo, type: string, pi: true, required: true }
+  - { id: ff3xrbx0i3, name: name, type: string, required: true }
+  - { id: mh42gsuvpe, name: email, type: string, nullable: true, constraints: [email] }
+  - { id: qfvghhtsd7, name: vatNo, type: string, nullable: true }
 indexes:
-  - { name: ux_customer_email, fields: [email], unique: true }
+  - { name: ux_customer_email, fields: [mh42gsuvpe], unique: true }
