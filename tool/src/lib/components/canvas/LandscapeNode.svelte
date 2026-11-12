@@ -59,8 +59,8 @@
 			.join(' ');
 </script>
 
-<!-- Opacity comes from CSS variables set on the canvas (--z, --cw, --ch) and on the node
-     wrapper (--w, --h, --pw, --ph), so zooming never re-renders nodes. -->
+<!-- Open/closed comes from the wrapper's `open` class (set by the canvas), so it never
+     re-renders nodes. -->
 <div
 	class="node"
 	class:group={d.group}
@@ -240,23 +240,30 @@
 
 <style>
 	.node {
-		/* How much of the canvas the parent fills. The parent's face fades out between 0.5 and
-		   0.6, then its children fade in between 0.55 and 0.7, so labels never overlap. */
-		--pf: max(calc(var(--pw) * var(--z) / var(--cw)), calc(var(--ph) * var(--z) / var(--ch)));
-		--vis: clamp(0, calc((var(--pf) - 0.55) / 0.15), 1);
-		--open: 0;
 		position: relative;
 		width: 100%;
 		height: 100%;
 		box-sizing: border-box;
-		opacity: var(--vis);
 		cursor: pointer;
 	}
 	.node.group {
-		--own: max(calc(var(--w) * var(--z) / var(--cw)), calc(var(--h) * var(--z) / var(--ch)));
-		--open: clamp(0, calc((var(--own) - 0.5) / 0.1), 1);
 		border: 1.5px dashed var(--sdv-boundary-stroke);
 		background: var(--sdv-boundary-fill);
+	}
+	/* Opening: the face goes at once, the header and children come in after (see the canvas).
+	   Closing: the children go at once, the face comes back after. */
+	.node.group > .face,
+	.node.group > .header {
+		transition: opacity 0.15s ease-out 0.1s;
+	}
+	.node.group > .header,
+	:global(.svelte-flow__node.open) > .node.group > .face {
+		opacity: 0;
+		transition-delay: 0s;
+	}
+	:global(.svelte-flow__node.open) > .node.group > .header {
+		opacity: 1;
+		transition-delay: 0.1s;
 	}
 	.node.peer-box {
 		outline: 2px solid var(--sdv-link-ref);
@@ -280,7 +287,6 @@
 		background: var(--fill);
 		border: 1px solid var(--stroke);
 		color: var(--text);
-		opacity: calc(1 - var(--open));
 		pointer-events: none;
 	}
 	.name {
@@ -455,7 +461,6 @@
 		font-size: min(calc(14px / var(--z)), var(--hdr));
 		font-weight: 600;
 		color: var(--sdv-boundary-text);
-		opacity: var(--open);
 		white-space: nowrap;
 		pointer-events: none;
 	}

@@ -28,23 +28,29 @@
 		type LandscapeBox,
 		type ModelLink
 	} from '#lib/landscape/layout.ts';
+	import { openBoxes } from '#lib/landscape/open.ts';
+	import { untrack } from 'svelte';
 	import LandscapeNode, { type LandscapeNodeData } from './LandscapeNode.svelte';
 
-	/** The whole model, fully expanded. It is laid out once; zooming only changes opacity. */
+	/**
+	 * The whole model, laid out once. Only boxes inside open boxes are mounted; which boxes are
+	 * open follows where they sit on screen (see open.ts), and opening fades over a fixed time.
+	 */
 	let { view }: { view: ViewState } = $props();
 
 	const flow = useSvelteFlow();
 	const viewport = useViewport();
 	const nodeTypes = { landscape: LandscapeNode };
-	// A box counts as open once it fills this share of the canvas, where its children start
-	// to fade in (see LandscapeNode).
-	const OPEN = 0.55;
+	// How long a closed box's children stay mounted while they fade out (the CSS transitions).
+	const FADE_MS = 300;
 
 	let cw = $state(1);
 	let ch = $state(1);
 	let nodes = $state.raw<Node[]>([]);
 	let edges = $state.raw<Edge[]>([]);
 	let fitted = false;
+	// Set once the first fit has landed; before it the camera is a placeholder.
+	let ready = $state(false);
 
 	const boxes = $derived(layoutLandscape(design.model));
 	const rels = $derived(relationsOf(design.model));
@@ -57,19 +63,42 @@
 	);
 	const label = (id: string) => refLabel(design.model, id) ?? id;
 	const el = (id: string) => design.model.elements.get(id);
-	const fillOf = (b: { width: number; height: number }, zoom: number) =>
-		Math.max((b.width * zoom) / cw, (b.height * zoom) / ch);
 
-	// Discrete state derived from the camera. Joined into a string so a pan that changes
-	// nothing stops here instead of rebuilding nodes every frame.
-	const openKey = $derived.by(() => {
-		const z = viewport.current.zoom;
-		return boxes
-			.filter((b) => b.group && fillOf(b, z) >= OPEN)
-			.map((b) => b.id)
-			.join(',');
+	// State, not derived, so a pan that changes nothing stops here instead of rebuilding nodes
+	// every frame, and the boxes that just closed are known.
+	let open = $state.raw(new Set<string>());
+	// Boxes that just closed; their children stay mounted until they have faded out.
+	let closing = $state.raw(new Set<string>());
+	const sameSet = (a: Set<string>, b: Set<string>) =>
+		a.size === b.size && [...a].every((id) => b.has(id));
+	$effect(() => {
+		const { x, y, zoom } = viewport.current;
+		if (!ready) return;
+		const was = untrack(() => open);
+		const next = openBoxes(boxes, { x, y, zoom, width: cw, height: ch });
+		if (sameSet(next, was)) return;
+		const shut = [...was].filter((id) => !next.has(id));
+		open = next;
+		if (!shut.length) return;
+		closing = new Set([...untrack(() => closing), ...shut]);
+		setTimeout(() => {
+			closing = new Set([...closing].filter((id) => !shut.includes(id) || open.has(id)));
+		}, FADE_MS);
 	});
-	const open = $derived(new Set(openKey.split(',').filter(Boolean)));
+
+	// Mounted: roots, children of open or closing boxes, and the far ends of focused lines
+	// (with the boxes round them), so a line to a closed box still has an end.
+	const mounted = $derived.by(() => {
+		const out = boxes
+			.filter((b) => !b.parentId || open.has(b.parentId) || closing.has(b.parentId))
+			.map((b) => b.id);
+		for (const l of focused)
+			for (let id: string | undefined = l.source === focus?.box ? l.target : l.source; id;) {
+				out.push(id);
+				id = boxById.get(id)?.parentId;
+			}
+		return new Set(out);
+	});
 
 	function onfield(box: string, field: string, ev: 'enter' | 'leave' | 'click') {
 		if (ev === 'enter') view.hover = { box, field };
@@ -114,58 +143,51 @@
 				{ ref: incomingCount(rels, id, 'ref'), from: incomingCount(rels, id, 'from') }
 			])
 		);
-		nodes = boxes.map((b) => {
-			const info = el(b.elementId)!;
-			const parent = b.parentId ? boxes.find((p) => p.id === b.parentId) : undefined;
-			return {
-				id: b.id,
-				type: 'landscape',
-				position: { x: b.x, y: b.y },
-				parentId: b.parentId,
-				width: b.width,
-				height: b.height,
-				draggable: false,
-				connectable: false,
-				class: !b.parentId || open.has(b.parentId) ? undefined : 'ghost',
-				style: [
-					`--w:${b.width}`,
-					`--h:${b.height}`,
-					`--pw:${parent?.width ?? 1e6}`,
-					`--ph:${parent?.height ?? 1e6}`
-				].join(';'),
-				data: {
-					name: info.name,
-					// A closed boundary reads as the model it is drawn round.
-					kind: b.boundary ? 'model' : info.def.kind,
-					group: b.group,
-					owner: b.ref ? el(info.parentId ?? '')?.name : undefined,
-					fields: b.fields,
-					indexes: b.view === 'table' ? info.def.indexes : undefined,
-					table: b.table,
-					view: b.view,
-					labels: Object.fromEntries(
-						(b.fields ?? [])
-							.flatMap((f) => [f.ref, f.model, ...(f.from ?? [])])
-							.flatMap((id) => {
-								const label = id && refLabel(design.model, id);
-								return label ? [[id, label]] : [];
-							})
-					),
-					incoming: counts,
-					state: view,
-					onfield: (field, ev) => onfield(b.id, field, ev)
-				} satisfies LandscapeNodeData
-			};
-		});
+		nodes = boxes
+			.filter((b) => mounted.has(b.id))
+			.map((b) => {
+				const info = el(b.elementId)!;
+				return {
+					id: b.id,
+					type: 'landscape',
+					position: { x: b.x, y: b.y },
+					parentId: b.parentId,
+					width: b.width,
+					height: b.height,
+					draggable: false,
+					connectable: false,
+					class:
+						[b.parentId && !open.has(b.parentId) && 'ghost', open.has(b.id) && 'open']
+							.filter(Boolean)
+							.join(' ') || undefined,
+					data: {
+						name: info.name,
+						// A closed boundary reads as the model it is drawn round.
+						kind: b.boundary ? 'model' : info.def.kind,
+						group: b.group,
+						owner: b.ref ? el(info.parentId ?? '')?.name : undefined,
+						fields: b.fields,
+						indexes: b.view === 'table' ? info.def.indexes : undefined,
+						table: b.table,
+						view: b.view,
+						labels: Object.fromEntries(
+							(b.fields ?? [])
+								.flatMap((f) => [f.ref, f.model, ...(f.from ?? [])])
+								.flatMap((id) => {
+									const label = id && refLabel(design.model, id);
+									return label ? [[id, label]] : [];
+								})
+						),
+						incoming: counts,
+						state: view,
+						onfield: (field, ev) => onfield(b.id, field, ev)
+					} satisfies LandscapeNodeData
+				};
+			});
 		if (!fitted && boxes.length) {
 			fitted = true;
-			// Systems differ in size, so cap the zoom where the largest one would start to open:
-			// the overview shows every system closed, none halfway through fading.
-			const roots = boxes.filter((b) => !b.parentId);
-			const maxZoom =
-				Math.min(...roots.map((b) => 0.5 * Math.min(cw / b.width, ch / b.height))) * 0.98;
 			requestAnimationFrame(() =>
-				requestAnimationFrame(() => flow.fitView({ padding: 0.08, maxZoom }))
+				requestAnimationFrame(() => flow.fitView({ padding: 0.08 }).then(() => (ready = true)))
 			);
 		}
 	});
@@ -176,7 +198,9 @@
 		// another row's, and the rest dimmed. Lines to cards in other boxes are added and
 		// always visible.
 		const lit = new Set(focused.map((l) => l.id));
-		const base = modelLinks(design.model, boxes);
+		const base = modelLinks(design.model, boxes).filter(
+			(l) => mounted.has(l.source) && mounted.has(l.target)
+		);
 		const baseIds = new Set(base.map((l) => l.id));
 		edges = [
 			...base.map((l) => edge(l, focus ? (lit.has(l.id) ? 'hot' : 'dim') : '')),
@@ -200,17 +224,14 @@
 			zIndex: hotLine ? 1000 : -1,
 			type: 'smoothstep',
 			pathOptions: { borderRadius: 0 },
-			class: `model-link ${l.kind} ${state}`,
+			class: `model-link ${l.kind} ${state} ${parent && !open.has(parent.id) ? 'off' : ''}`,
 			// A foreign key points at the key; a held model has a UML composition diamond at the
 			// holder (defined below); lineage points at the derived field, the way data flows.
 			...(l.kind === 'ref'
 				? { markerEnd: arrow }
 				: l.kind === 'from'
 					? { markerStart: arrow }
-					: { markerStart: hotLine ? 'sdv-composition-hot' : 'sdv-composition' }),
-			domAttributes: {
-				style: `--pw:${parent?.width ?? 1e6};--ph:${parent?.height ?? 1e6}`
-			}
+					: { markerStart: hotLine ? 'sdv-composition-hot' : 'sdv-composition' })
 		};
 	}
 
@@ -275,7 +296,8 @@
 
 	/**
 	 * Centres the camera on the target row and picks it. The zoom stays where it is unless the
-	 * target's box would be too closed to show it, or the card too big for the canvas.
+	 * target's box would be too closed to show it, or the card too big for the canvas. The
+	 * centre is nudged so the box round the target stays in view, which is what opens it.
 	 */
 	function flyTo(target: { box: LandscapeBox; field?: string }, back = false) {
 		const t = target.box;
@@ -283,10 +305,16 @@
 		const fill = (b: LandscapeBox) => Math.max(b.width / cw, b.height / ch);
 		const zoom = Math.min(Math.max(viewport.current.zoom, 0.8 / fill(area)), 0.92 / fill(t));
 		const row = t.fields?.findIndex((f) => f.id === target.field) ?? -1;
-		flow.setCenter(t.absX + t.width / 2, t.absY + (row >= 0 ? fieldRowY(row) : t.height / 2), {
-			zoom,
-			duration: 700
-		});
+		// Keep [start, start + size] on a canvas side of `side` pixels, if it fits.
+		const keep = (c: number, start: number, size: number, side: number) => {
+			const half = side / 2 / zoom;
+			return size <= 2 * half ? Math.min(Math.max(c, start + size - half), start + half) : c;
+		};
+		flow.setCenter(
+			keep(t.absX + t.width / 2, area.absX, area.width, cw),
+			keep(t.absY + (row >= 0 ? fieldRowY(row) : t.height / 2), area.absY, area.height, ch),
+			{ zoom, duration: 700 }
+		);
 		view.hover = null;
 		if (!target.field) return;
 		const ref = { box: t.id, field: target.field };
@@ -325,8 +353,6 @@
 	bind:clientWidth={cw}
 	bind:clientHeight={ch}
 	style:--z={viewport.current.zoom}
-	style:--cw={cw}
-	style:--ch={ch}
 	data-testid="canvas"
 >
 	<SvelteFlow
@@ -440,9 +466,21 @@
 		border-radius: 0;
 		box-shadow: none;
 	}
+	/* Boxes and lines fade in when mounted and out before they are unmounted (FADE_MS). Children
+	   come in after their box's face has gone, and go before it returns, so labels never overlap. */
+	.canvas :global(.svelte-flow__node),
 	.canvas :global(.svelte-flow__edge.model-link) {
-		--pf: max(calc(var(--pw) * var(--z) / var(--cw)), calc(var(--ph) * var(--z) / var(--ch)));
-		opacity: clamp(0, calc((var(--pf) - 0.55) / 0.15), 1);
+		transition: opacity 0.18s ease-out 0.1s;
+		@starting-style {
+			opacity: 0;
+		}
+	}
+	.canvas :global(.svelte-flow__node.ghost),
+	.canvas :global(.svelte-flow__edge.model-link.off) {
+		opacity: 0;
+		transition-delay: 0s;
+	}
+	.canvas :global(.svelte-flow__edge.model-link) {
 		pointer-events: none;
 	}
 	.canvas :global(.model-link .svelte-flow__edge-path) {
@@ -467,6 +505,7 @@
 	/* A line to another box is drawn whatever the zoom, so it shows where the other end is. */
 	.canvas :global(.svelte-flow__edge.model-link.cross) {
 		opacity: 1;
+		transition: none;
 	}
 	.inspector {
 		position: absolute;
