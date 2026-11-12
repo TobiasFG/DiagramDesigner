@@ -1,4 +1,4 @@
-import type { Element, EntityFile, EntityFileKind, ModelField } from './schema';
+import type { ApiBody, ApiField, Element, EntityFile, EntityFileKind, ModelField } from './schema';
 import { ENTITY_KINDS, PARENT_KINDS } from './schema';
 import type { DataPath, Diagnostic, Severity } from './diagnostics';
 import { entityKind, fileKind } from './parse';
@@ -36,11 +36,36 @@ export interface FieldInfo {
 	loc: Loc;
 }
 
+/** Which body of an api: its request, or the response with this status. */
+export type ApiPart = 'request' | number;
+
+/** A field of a body shape written on an api, found by its id. */
+export interface ApiFieldInfo {
+	def: ApiField;
+	apiId: string;
+	part: ApiPart;
+	loc: Loc;
+}
+
 export type GlobalKind = 'element' | 'field';
+
+/** An api's bodies, request first, with where each is written. */
+export const apiBodies = (def: Element) => [
+	...(def.request
+		? [{ part: 'request' as ApiPart, body: def.request as ApiBody, path: ['request'] }]
+		: []),
+	...(def.responses ?? []).map((body, i) => ({
+		part: body.status as ApiPart,
+		body: body as ApiBody,
+		path: ['responses', i] as (string | number)[]
+	}))
+];
 
 export interface Model {
 	elements: Map<string, ElementInfo>;
 	fields: Map<string, FieldInfo>;
+	/** Fields of body shapes written on apis. */
+	apiFields: Map<string, ApiFieldInfo>;
 	rootElementIds: string[];
 	/** Global id namespace. */
 	ids: Map<string, { kind: GlobalKind; loc: Loc }>;
@@ -63,6 +88,7 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 	const model: Model = {
 		elements: new Map(),
 		fields: new Map(),
+		apiFields: new Map(),
 		rootElementIds: [],
 		ids: new Map(),
 		files: Object.keys(files).sort(),
@@ -255,6 +281,63 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 					);
 				statuses.add(r.status);
 			});
+			for (const { part, body, path } of apiBodies({ ...value, kind })) {
+				const bodyLoc = at(loc, ...path);
+				const name = part === 'request' ? 'request' : `response ${part}`;
+				if (body.model && body.fields)
+					diag('error', 'api-body', `${name} gives both model and fields`, bodyLoc, 'fields');
+				if (part === 'request' && !body.model && !body.fields)
+					diag('error', 'api-body', `request needs a model or fields`, bodyLoc);
+				if (!body.model && (body.omit || body.pick))
+					diag(
+						'error',
+						'api-body',
+						`${name}: omit and pick need a model`,
+						bodyLoc,
+						body.omit ? 'omit' : 'pick'
+					);
+				if (body.omit && body.pick)
+					diag('error', 'api-body', `${name} gives both omit and pick`, bodyLoc, 'pick');
+				const names = new Set<string>();
+				body.fields?.forEach((f, i) => {
+					const fieldLoc = at(bodyLoc, 'fields', i);
+					if (claim(f.id, 'field', fieldLoc))
+						model.apiFields.set(f.id, { def: f, apiId: value.id, part, loc: fieldLoc });
+					if (names.has(f.name))
+						diag(
+							'error',
+							'duplicate-field',
+							`field "${f.name}" is defined twice`,
+							fieldLoc,
+							'name'
+						);
+					names.add(f.name);
+					if (!f.type === !f.model)
+						diag(
+							'error',
+							'field-type',
+							`field "${f.name}" needs exactly one of type and model`,
+							fieldLoc,
+							f.type ? 'model' : 'name'
+						);
+					if (part === 'request' && f.from)
+						diag(
+							'error',
+							'api-field-direction',
+							`request field "${f.name}" sends data, so it says where it goes (to), not from`,
+							fieldLoc,
+							'from'
+						);
+					if (part !== 'request' && f.to)
+						diag(
+							'error',
+							'api-field-direction',
+							`response field "${f.name}" returns data, so it says where it comes from (from), not to`,
+							fieldLoc,
+							'to'
+						);
+				});
+			}
 		} else {
 			for (const key of ['method', 'path', 'auth', 'params', 'request', 'responses'] as const)
 				if (value[key]) diag('error', 'api-only', `only apis have ${key}`, loc, key);
@@ -308,17 +391,12 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 			at(model.fields.get(cycle[0])!.loc, 'from')
 		);
 	for (const info of entities) {
-		const bodies = [
-			...(info.def.request ? [{ body: info.def.request, path: ['request'] }] : []),
-			...(info.def.responses ?? []).map((body, i) => ({ body, path: ['responses', i] }))
-		];
-		for (const { body, path } of bodies) {
-			if (!body.model) continue;
-			const target = model.elements.get(body.model);
+		for (const { part, body, path } of info.def.kind === 'api' ? apiBodies(info.def) : []) {
 			const bodyLoc = at(info.loc, ...path);
-			if (!target)
+			const target = body.model ? model.elements.get(body.model) : undefined;
+			if (body.model && !target)
 				diag('error', 'dangling-ref', `model "${body.model}" is not an entity`, bodyLoc, 'model');
-			else if (target.def.kind !== 'model')
+			else if (target && target.def.kind !== 'model')
 				diag(
 					'error',
 					'not-a-model',
@@ -326,6 +404,55 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 					bodyLoc,
 					'model'
 				);
+			else if (target)
+				for (const key of ['omit', 'pick'] as const)
+					body[key]?.forEach((id, j) => {
+						if (model.fields.get(id)?.modelId !== target.id)
+							diag(
+								'error',
+								'unknown-field',
+								`${key} names "${id}", which is not a field of "${target.name}"`,
+								at(bodyLoc, key, j)
+							);
+					});
+			body.fields?.forEach((f, i) => {
+				const fieldLoc = at(bodyLoc, 'fields', i);
+				if (f.model && model.elements.get(f.model)?.def.kind !== 'model')
+					diag(
+						'error',
+						'dangling-ref',
+						`field "${f.name}" holds "${f.model}", which is not a model`,
+						fieldLoc,
+						'model'
+					);
+				for (const key of ['to', 'from'] as const)
+					f[key]?.forEach((id, j) => {
+						if (!model.fields.has(id))
+							diag(
+								'error',
+								'dangling-ref',
+								`field "${f.name}" ${key === 'to' ? 'goes into' : 'comes from'} "${id}", which is not a model field`,
+								at(fieldLoc, key, j)
+							);
+					});
+				if (f.model) return;
+				if (part === 'request' && !f.to?.length)
+					diag(
+						'warning',
+						'untraced-field',
+						`request field "${f.name}" goes into no model field; add to`,
+						fieldLoc,
+						'name'
+					);
+				if (part !== 'request' && !f.from?.length)
+					diag(
+						'warning',
+						'untraced-field',
+						`response field "${f.name}" comes from no field; add from`,
+						fieldLoc,
+						'name'
+					);
+			});
 		}
 		info.def.fields?.forEach((f, i) => {
 			if (!f.ref) return;

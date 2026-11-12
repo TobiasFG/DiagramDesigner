@@ -23,12 +23,25 @@
 		modelLinks,
 		refLabel,
 		relationsOf,
+		TABLE,
 		typeText,
 		type FieldLink,
 		type LandscapeBox,
 		type ModelLink
 	} from '#lib/landscape/layout.ts';
-	import { apiHosts, openBoxes } from '#lib/landscape/open.ts';
+	import { apiHosts, openBoxes, railOpen, READABLE } from '#lib/landscape/open.ts';
+	import {
+		apiUses,
+		bodyModels,
+		partLabel,
+		RAIL,
+		railGroups,
+		railOf,
+		railRowY,
+		type ApiUse,
+		type Rail
+	} from '#lib/landscape/apis.ts';
+	import { apiBodies } from '#lib/model/model.ts';
 	import { untrack } from 'svelte';
 	import LandscapeNode, { type LandscapeNodeData } from './LandscapeNode.svelte';
 
@@ -70,6 +83,8 @@
 	let open = $state.raw(new Set<string>());
 	// Boxes that just closed; their children stay mounted until they have faded out.
 	let closing = $state.raw(new Set<string>());
+	// Hosts whose rail rows read at READABLE px, so the rail lists them.
+	let openRails = $state.raw(new Set<string>());
 	const sameSet = (a: Set<string>, b: Set<string>) =>
 		a.size === b.size && [...a].every((id) => b.has(id));
 	$effect(() => {
@@ -77,6 +92,16 @@
 		if (!ready) return;
 		const was = untrack(() => open);
 		const next = openBoxes(boxes, { x, y, zoom, width: cw, height: ch });
+		const listed = new Set(
+			[...railsFor(next)].filter(([, r]) => railOpen(r, zoom)).map(([id]) => id)
+		);
+		if (
+			!sameSet(
+				listed,
+				untrack(() => openRails)
+			)
+		)
+			openRails = listed;
 		if (sameSet(next, was)) return;
 		const shut = [...was].filter((id) => !next.has(id));
 		open = next;
@@ -101,8 +126,29 @@
 		return new Set(out);
 	});
 
-	// Apis sit on the border of their parent's box, or of the nearest shown box round it.
-	const hosts = $derived(apiHosts(boxes, open));
+	// Apis sit on a rail across the right border of their parent's box, or of the nearest shown
+	// box round it, one rail per box.
+	function railsFor(openSet: Set<string>): Map<string, Rail> {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- built and returned whole
+		const out = new Map<string, Rail>();
+		for (const [id, apis] of apiHosts(boxes, openSet)) {
+			const b = boxById.get(id)!;
+			out.set(id, railOf(design.model, railGroups(design.model, b.elementId, apis), b.height));
+		}
+		return out;
+	}
+	const rails = $derived(railsFor(open));
+	const uses = $derived(apiUses(design.model));
+	const hostOf = (api: string) => {
+		for (const [id, r] of rails)
+			if (r.groups.some((g) => g.apis.includes(api))) return boxById.get(id);
+	};
+	/** The box drawn for `b`: itself, or the nearest shown box round it while it is hidden. */
+	const shownBox = (b: LandscapeBox) => {
+		let s = b;
+		while (s.parentId && !open.has(s.parentId)) s = boxById.get(s.parentId)!;
+		return s;
+	};
 
 	function onfield(box: string, field: string, ev: 'enter' | 'leave' | 'click') {
 		if (ev === 'enter') view.hover = { box, field };
@@ -111,12 +157,82 @@
 			const same = view.field?.box === box && view.field.field === field;
 			view.field = same ? null : { box, field };
 			view.api = null;
+			view.apiField = null;
 			view.selectedNodes = [];
 		}
 	}
 
+	function railView(id: string) {
+		const r = rails.get(id);
+		if (!r) return undefined;
+		return {
+			top: r.top,
+			width: r.width,
+			height: r.height,
+			scale: r.scale,
+			methodWidth: r.methodWidth,
+			open: openRails.has(id),
+			groups: r.groups.map((g) => ({
+				title: g.title,
+				apis: g.apis.map((a) => {
+					const def = el(a)!.def;
+					return { id: a, name: el(a)!.name, method: def.method ?? '', path: def.path ?? '' };
+				})
+			}))
+		};
+	}
+
+	/** Zooms in on a closed rail until its rows read, centred on it. */
+	function openRail(id: string) {
+		const b = boxById.get(id);
+		const r = rails.get(id);
+		if (!b || !r) return;
+		const zoom = Math.max(viewport.current.zoom, (READABLE / (RAIL.font * r.scale)) * 1.05);
+		flow.setCenter(b.absX + b.width, b.absY + r.top + r.height / 2, { zoom, duration: 600 });
+	}
+
+	/** The rows a field of the picked api's own shape sends into or comes from. */
+	function apiFieldTargets(id: string | null) {
+		const f = id ? design.model.apiFields.get(id) : undefined;
+		const host = f && hostOf(f.apiId);
+		if (!f || !host) return [];
+		return (f.def.to ?? f.def.from ?? []).flatMap((field) => {
+			const box = linkTarget(design.model, boxes, host, field);
+			return box ? [{ box, field }] : [];
+		});
+	}
+
+	// Boxes the picked api's bodies use, outlined with the parts using them, and the rows a
+	// trimmed body leaves out, dimmed. A model in a hidden box outlines the box that shows.
+	$effect(() => {
+		const host = view.api ? hostOf(view.api) : undefined;
+		const parts: Record<string, string[]> = {};
+		const kept: Record<string, Set<string> | 'all'> = {};
+		if (view.api && host)
+			for (const u of bodyModels(design.model, view.api)) {
+				const t = linkTarget(design.model, boxes, host, u.model);
+				if (!t) continue;
+				const s = shownBox(t);
+				const label = partLabel(u.part);
+				if (!(parts[s.id] ??= []).includes(label)) parts[s.id].push(label);
+				const k = kept[s.id];
+				if (!u.fields || u.fields.length === (s.fields?.length ?? 0) || k === 'all')
+					kept[s.id] = 'all';
+				else kept[s.id] = new Set([...(k ?? []), ...u.fields]);
+			}
+		const dim: Record<string, Record<string, true>> = {};
+		for (const [id, k] of Object.entries(kept)) {
+			if (k === 'all') continue;
+			for (const f of boxById.get(id)?.fields ?? [])
+				if (!k.has(f.id)) (dim[id] ??= {})[f.id] = true;
+		}
+		view.apiBoxes = parts;
+		view.apiDim = dim;
+	});
+
 	function onapi(api: string) {
 		view.api = view.api === api ? null : api;
+		view.apiField = null;
 		view.field = null;
 		view.trail = [];
 		view.selectedNodes = [];
@@ -132,6 +248,7 @@
 			if (rows[field] !== 'self') rows[field] = how;
 		};
 		if (focus) lit(focus.box, focus.field, 'self');
+		for (const t of apiFieldTargets(view.apiField)) lit(t.box.id, t.field, 'peer');
 		for (const l of focused) {
 			lit(l.source, l.sourceField, 'peer');
 			lit(l.target, l.targetField, 'peer');
@@ -152,7 +269,11 @@
 		const counts = Object.fromEntries(
 			[...design.model.fields.keys()].map((id) => [
 				id,
-				{ ref: incomingCount(rels, id, 'ref'), from: incomingCount(rels, id, 'from') }
+				{
+					ref: incomingCount(rels, id, 'ref'),
+					from: incomingCount(rels, id, 'from'),
+					api: incomingCount(rels, id, 'api')
+				}
 			])
 		);
 		nodes = boxes
@@ -193,11 +314,9 @@
 						incoming: counts,
 						state: view,
 						onfield: (field, ev) => onfield(b.id, field, ev),
-						apis: hosts.get(b.id)?.map((id) => {
-							const a = el(id)!;
-							return { id, name: a.name, method: a.def.method ?? '', path: a.def.path ?? '' };
-						}),
-						onapi
+						rail: railView(b.id),
+						onapi,
+						onrail: () => openRail(b.id)
 					} satisfies LandscapeNodeData
 				};
 			});
@@ -269,7 +388,27 @@
 		text: string;
 		where: string;
 		target?: { box: LandscapeBox; field?: string };
+		/** An api using the field; clicking it picks the api. */
+		api?: string;
 	}
+
+	/** An element's enclosing entities and itself, outermost first. */
+	function pathOf(id: string | undefined): string {
+		const names: string[] = [];
+		for (let e = id ? el(id) : undefined; e; e = e.parentId ? el(e.parentId) : undefined)
+			names.unshift(e.name);
+		return names.join(' › ');
+	}
+
+	const apiEntry = (u: ApiUse): Entry => {
+		const a = el(u.api)!;
+		const via = u.via ? design.model.apiFields.get(u.via)?.def.name : undefined;
+		return {
+			text: `${a.def.method} ${a.def.path} · ${partLabel(u.part)}${via ? `.${via}` : ''}`,
+			where: `${a.name} · ${via ? 'own shape, keeps its own name' : 'the model itself, so a rename changes it'}`,
+			api: u.api
+		};
+	};
 
 	const inspector = $derived.by(() => {
 		const f = view.field;
@@ -304,38 +443,156 @@
 					note: def.derived
 				},
 				{ label: 'Referenced by', kind: 'ref', glyph: '←', entries: inOf('ref') },
-				{ label: 'Feeds', kind: 'from', glyph: '⇢', entries: inOf('from') }
+				{ label: 'Feeds', kind: 'from', glyph: '⇢', entries: inOf('from') },
+				{
+					label: 'Fed by apis',
+					kind: 'from',
+					glyph: '⇠',
+					entries: (uses.fedBy.get(f.field) ?? []).map(apiEntry)
+				},
+				{
+					label: 'Returned by apis',
+					kind: 'from',
+					glyph: '⇢',
+					entries: (uses.returnedBy.get(f.field) ?? []).map(apiEntry)
+				}
 			].filter((s) => s.entries.length)
 		};
 	});
 
-	const apiInspector = $derived.by(() => {
+	const statusClass = (s: number) => (s < 300 ? 'ok' : s < 400 ? '' : s < 500 ? 'warn' : 'bad');
+
+	/** The picked api, for the card beside its rail row. */
+	const apiCard = $derived.by(() => {
 		const a = view.api ? el(view.api) : undefined;
-		const from = a?.parentId && boxById.get(a.parentId);
-		if (!a || !from) return undefined;
-		const body = (m: string | undefined, many?: boolean, contentType?: string) => {
-			const t = m ? linkTarget(design.model, boxes, from, m) : undefined;
-			return {
-				model: m ? label(m) + (many ? '[]' : '') : undefined,
-				where: [t ? whereOf(t) : m && 'not drawn', m && (contentType ?? 'application/json')]
-					.filter(Boolean)
-					.join(' · '),
-				target: t && { box: t }
-			};
-		};
+		const host = view.api ? hostOf(view.api) : undefined;
+		if (!a || !host) return undefined;
+		const names = (ids: string[]) =>
+			ids.map((id) => design.model.fields.get(id)?.def.name ?? id).join(', ');
 		const d = a.def;
+		const bodies = apiBodies(d).map(({ part, body }) => {
+			const t = body.model ? linkTarget(design.model, boxes, host, body.model) : undefined;
+			return {
+				part,
+				status: typeof part === 'number' ? part : undefined,
+				description: 'description' in body ? (body.description as string | undefined) : undefined,
+				model: body.model && {
+					text: label(body.model) + (body.many ? '[]' : ''),
+					note: body.omit
+						? `without ${names(body.omit)}`
+						: body.pick
+							? `only ${names(body.pick)}`
+							: t
+								? whereOf(t)
+								: 'not drawn',
+					target: t && { box: t }
+				},
+				many: !!body.many && !!body.fields,
+				fields: (body.fields ?? []).map((f) => {
+					const links = (part === 'request' ? f.to : f.from) ?? [];
+					return {
+						id: f.id,
+						name: f.name + (f.required ? '' : '?'),
+						type: typeText(f, (id) => refLabel(design.model, id)),
+						traced: links.length > 0 || !!f.model,
+						title: links.length
+							? `${part === 'request' ? 'Goes into' : 'Comes from'} ${links.map(label).join(', ')}${f.derived ? ` · ${f.derived}` : ''}`
+							: f.model
+								? undefined
+								: part === 'request'
+									? 'Goes into no model field: add to'
+									: 'Comes from no field: add from'
+					};
+				})
+			};
+		});
 		return {
-			title: `${d.method} ${d.path}`,
-			sub: [a.name, d.auth && `auth: ${d.auth}`].filter(Boolean).join(' · '),
+			method: d.method ?? '',
+			path: d.path ?? '',
+			sub: [a.name, pathOf(a.parentId), d.auth && `auth: ${d.auth}`].filter(Boolean).join(' · '),
 			params: d.params ?? [],
-			request: d.request && body(d.request.model, d.request.many, d.request.contentType),
-			responses: (d.responses ?? []).map((r) => ({
-				status: r.status,
-				description: r.description,
-				...body(r.model, r.many, r.contentType)
-			}))
+			request: bodies.find((b) => b.part === 'request'),
+			responses: bodies.filter((b) => b.part !== 'request')
 		};
 	});
+
+	/** Where the picked api's row is on screen: the rail's edges and the row's middle. */
+	const apiAnchor = $derived.by(() => {
+		const host = view.api ? hostOf(view.api) : undefined;
+		const r = host && rails.get(host.id);
+		if (!view.api || !host || !r) return undefined;
+		const { x: vx, y: vy, zoom } = viewport.current;
+		const left = host.absX + host.width - r.width / 2;
+		const row = openRails.has(host.id) ? railRowY(r, view.api) : undefined;
+		const y = host.absY + r.top + (row !== undefined ? row * r.scale : r.height / 2);
+		return { left: left * zoom + vx, right: (left + r.width) * zoom + vx, y: y * zoom + vy };
+	});
+
+	const CARD_W = 320;
+	const cardPos = $derived.by(() => {
+		if (!apiAnchor) return undefined;
+		const right = apiAnchor.right + 14;
+		const left = right + CARD_W <= cw - 8 ? right : Math.max(8, apiAnchor.left - 14 - CARD_W);
+		return { left, top: Math.min(Math.max(8, apiAnchor.y - 24), Math.max(8, ch - 160)) };
+	});
+
+	/**
+	 * Lines from the picked api's row, in screen px: solid to each model its bodies use, and
+	 * dashed to the fields a hovered field of its own shape sends into or comes from.
+	 */
+	const apiLines = $derived.by(() => {
+		const host = view.api ? hostOf(view.api) : undefined;
+		if (!view.api || !host || !apiAnchor) return [];
+		const { x: vx, y: vy, zoom } = viewport.current;
+		const out: { d: string; arrow: string; kind: 'ref' | 'from' }[] = [];
+		const draw = (t: LandscapeBox, y: number, kind: 'ref' | 'from', arrowAtRail = false) => {
+			const tl = t.absX * zoom + vx;
+			const tr = (t.absX + t.width) * zoom + vx;
+			const ty = y * zoom + vy;
+			const leftward = tr <= apiAnchor.left;
+			const x0 = leftward ? apiAnchor.left : apiAnchor.right;
+			const x1 = x0 + (leftward ? -12 : 12);
+			const tx = leftward ? tr : tl;
+			const head = (x: number, y: number, dir: number) =>
+				`M${x} ${y} L${x - dir * 9} ${y - 4.5} L${x - dir * 9} ${y + 4.5} Z`;
+			out.push({
+				d: `M${x0} ${apiAnchor.y} H${x1} V${ty} H${tx}`,
+				arrow: arrowAtRail
+					? head(x0, apiAnchor.y, leftward ? 1 : -1)
+					: head(tx, ty, tx < x1 ? -1 : 1),
+				kind
+			});
+		};
+		for (const u of bodyModels(design.model, view.api)) {
+			const t = linkTarget(design.model, boxes, host, u.model);
+			if (!t) continue;
+			const s = shownBox(t);
+			draw(s, s === t && t.view ? t.absY + TABLE.head / 2 : s.absY + s.height / 2, 'ref');
+		}
+		const f = view.apiField ? design.model.apiFields.get(view.apiField) : undefined;
+		for (const t of apiFieldTargets(view.apiField)) {
+			const s = shownBox(t.box);
+			const i = t.box.fields?.findIndex((x) => x.id === t.field) ?? -1;
+			draw(
+				s,
+				s === t.box && i >= 0 ? t.box.absY + fieldRowY(i) : s.absY + s.height / 2,
+				'from',
+				f?.part !== 'request'
+			);
+		}
+		return out;
+	});
+
+	/** Picks an api from the inspector and centres on the box owning it. */
+	function showApi(id: string) {
+		const owner = el(id)?.parentId;
+		const box = boxes.find((b) => b.elementId === owner && !b.ref);
+		view.field = null;
+		view.trail = [];
+		view.apiField = null;
+		view.api = id;
+		if (box) flyTo({ box });
+	}
 
 	let flashTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -383,6 +640,7 @@
 
 	function unpin() {
 		view.api = null;
+		view.apiField = null;
 		view.field = null;
 		view.trail = [];
 	}
@@ -407,7 +665,7 @@
 		{nodeTypes}
 		colorMode={theme.current}
 		minZoom={0.05}
-		maxZoom={4}
+		maxZoom={64}
 		nodesDraggable={false}
 		nodesConnectable={false}
 		elementsSelectable={false}
@@ -476,8 +734,8 @@
 					{#each s.entries as e, i (i)}
 						<button
 							class="entry"
-							disabled={!e.target}
-							onclick={() => e.target && flyTo(e.target)}
+							disabled={!e.target && !e.api}
+							onclick={() => (e.api ? showApi(e.api) : e.target && flyTo(e.target))}
 							onmouseenter={() =>
 								(view.hover = e.target?.field
 									? { box: e.target.box.id, field: e.target.field }
@@ -495,12 +753,30 @@
 				<p class="empty">No references, sources or incoming links.</p>
 			{/each}
 		</aside>
-	{:else if apiInspector}
-		{@const api = apiInspector}
-		<aside class="inspector" data-testid="api-inspector">
+	{:else if apiCard && cardPos}
+		{@const api = apiCard}
+		<svg class="api-lines" aria-hidden="true">
+			{#each apiLines as l, i (i)}
+				<path class="line {l.kind}" d={l.d} />
+				<path class="head {l.kind}" d={l.arrow} />
+			{/each}
+		</svg>
+		<!-- Beside the picked row, moving with the canvas, so the api and what it uses share a view. -->
+		<aside
+			class="inspector api-card"
+			style:left="{cardPos.left}px"
+			style:top="{cardPos.top}px"
+			style:width="{CARD_W}px"
+			data-testid="api-inspector"
+		>
 			<header>
 				<div class="head">
-					<div class="title">{api.title}</div>
+					<div class="title">
+						<span style:color="var(--sdv-method-{api.method.toLowerCase()}, var(--sdv-text-muted))"
+							>{api.method}</span
+						>
+						<span class="mono">{api.path}</span>
+					</div>
 					<div class="type">{api.sub}</div>
 				</div>
 				<button class="icon-btn" onclick={unpin} aria-label="Close" title="Close (Esc)">×</button>
@@ -518,41 +794,45 @@
 					{/each}
 				</section>
 			{/if}
-			{#if api.request}
-				{@const r = api.request}
-				<section>
-					<h4>Request</h4>
-					<button
-						class="entry"
-						disabled={!r.target}
-						onclick={() => r.target && flyTo(r.target)}
-						title={r.target ? 'Go to' : undefined}
-					>
-						<span class="text">{r.model}</span>
-						<span class="where">{r.where}</span>
-					</button>
-				</section>
-			{/if}
-			{#if api.responses.length}
-				<section>
-					<h4>Responses</h4>
-					{#each api.responses as r (r.status)}
+			{#each [api.request, ...api.responses].filter((b) => !!b) as b (b.part)}
+				<section class="body">
+					<h4>
+						{#if b.status}<b class="status {statusClass(b.status)}">{b.status}</b
+							>{:else}Request{/if}
+						{#if b.fields.length}<span class="shape">own shape{b.many ? ', a list' : ''}</span>{/if}
+						{#if b.description}<span class="shape">{b.description}</span>{/if}
+					</h4>
+					{#if b.model}
+						{@const m = b.model}
 						<button
 							class="entry"
-							disabled={!r.target}
-							onclick={() => r.target && flyTo(r.target)}
-							title={r.target ? 'Go to' : undefined}
+							disabled={!m.target}
+							onclick={() => m.target && flyTo(m.target)}
+							title={m.target ? 'Go to' : undefined}
 						>
-							<span class="text"
-								><b class="status">{r.status}</b>{r.model ?? r.description ?? ''}</span
-							>
-							<span class="where"
-								>{[r.model && r.description, r.where].filter(Boolean).join(' · ')}</span
-							>
+							<span class="text">{m.text}</span>
+							<span class="where">{m.note}</span>
 						</button>
+					{/if}
+					{#each b.fields as f (f.id)}
+						<div
+							class="api-field"
+							class:hot={view.apiField === f.id}
+							role="listitem"
+							title={f.title}
+							onmouseenter={() => (view.apiField = f.id)}
+							onmouseleave={() => (view.apiField = null)}
+						>
+							<span class="name">{f.name}</span>
+							<span class="where">{f.type}</span>
+							{#if !f.traced}<span class="untraced">▲</span>{:else if f.title}<span class="traced"
+									>{b.part === 'request' ? '→' : '←'}</span
+								>{/if}
+						</div>
 					{/each}
+					{#if !b.model && !b.fields.length && !b.description}<p class="empty">No body.</p>{/if}
 				</section>
-			{/if}
+			{/each}
 		</aside>
 	{/if}
 </div>
@@ -716,6 +996,81 @@
 	.inspector .note,
 	.inspector .empty {
 		margin: 4px 12px;
+	}
+	.api-card {
+		right: auto;
+		max-height: none;
+	}
+	.inspector .mono {
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		font-size: 13px;
+	}
+	.inspector .body h4 {
+		display: flex;
+		gap: 6px;
+		align-items: baseline;
+	}
+	.inspector .shape {
+		font-weight: 400;
+		letter-spacing: 0;
+	}
+	.status.ok {
+		color: var(--sdv-method-get);
+	}
+	.status.warn {
+		color: var(--sdv-method-put);
+	}
+	.status.bad {
+		color: var(--sdv-method-delete);
+	}
+	.api-field {
+		display: grid;
+		grid-template-columns: auto 1fr auto;
+		gap: 8px;
+		align-items: baseline;
+		padding: 3px 12px 3px 10px;
+		border-left: 2px solid transparent;
+		cursor: default;
+	}
+	.api-field.hot {
+		background: var(--sdv-row-hover);
+		border-left-color: var(--sdv-link-from);
+	}
+	.api-field .name {
+		font-weight: 500;
+	}
+	.api-field .traced {
+		color: var(--sdv-link-from);
+	}
+	.api-field .untraced {
+		color: var(--sdv-method-put);
+		font-size: 11px;
+	}
+	.api-lines {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		z-index: 9;
+		pointer-events: none;
+		overflow: visible;
+	}
+	.api-lines .line {
+		fill: none;
+		stroke-width: 2;
+	}
+	.api-lines .line.ref {
+		stroke: var(--sdv-link-ref);
+	}
+	.api-lines .line.from {
+		stroke: var(--sdv-link-from);
+		stroke-dasharray: 5 4;
+	}
+	.api-lines .head.ref {
+		fill: var(--sdv-link-ref);
+	}
+	.api-lines .head.from {
+		fill: var(--sdv-link-from);
 	}
 	.defs {
 		position: absolute;

@@ -115,24 +115,54 @@ export const ApiParam = z
 	.describe('Endpoint parameter, outside the body');
 export type ApiParam = z.infer<typeof ApiParam>;
 
-export const ApiBody = z
+/**
+ * A field of a body shape written on the api itself. Request fields say which model fields
+ * their value goes into (`to`); response fields which fields it comes from (`from`), so a
+ * change on either side can be traced.
+ */
+export const ApiField = z
 	.strictObject({
-		model: Id.describe('Id of the model sent or returned'),
-		many: z.boolean().optional().describe('A list of the model'),
-		contentType: z.string().optional().describe('Default application/json')
+		id: Id.describe('Unique across the whole design, like model field ids'),
+		name: z.string(),
+		type: z.string().optional().describe('Primitive type; give either type or model'),
+		model: Id.optional().describe('Id of a model this field holds'),
+		many: z.boolean().optional().describe('Holds a list of type or model'),
+		required: z.boolean().optional(),
+		nullable: z.boolean().optional(),
+		description: Text.optional(),
+		to: z
+			.array(Id)
+			.optional()
+			.describe('Request fields: ids of the model fields its value goes into'),
+		from: z
+			.array(Id)
+			.optional()
+			.describe('Response fields: ids of the fields its value comes from'),
+		derived: Text.optional().describe('How the value is changed on the way')
 	})
-	.describe('Request body');
+	.describe('Field of a body shape written on the api');
+export type ApiField = z.infer<typeof ApiField>;
+
+/** A body is a model as is, a model trimmed with omit or pick, or a shape of its own. */
+const bodyKeys = {
+	model: Id.optional().describe('Id of the model sent or returned'),
+	omit: z.array(Id).optional().describe('With model: ids of its fields left out'),
+	pick: z.array(Id).optional().describe('With model: ids of the only fields sent'),
+	fields: z.array(ApiField).optional().describe('A shape of its own, instead of a model'),
+	many: z.boolean().optional().describe('A list of the model or shape'),
+	contentType: z.string().optional().describe('Default application/json')
+};
+
+export const ApiBody = z.strictObject(bodyKeys).describe('Request body');
 export type ApiBody = z.infer<typeof ApiBody>;
 
 export const ApiResponse = z
 	.strictObject({
 		status: z.number().int().min(100).max(599),
-		model: Id.optional().describe('Id of the model returned; omit for no body'),
-		many: z.boolean().optional().describe('A list of the model'),
-		contentType: z.string().optional().describe('Default application/json'),
+		...bodyKeys,
 		description: Text.optional()
 	})
-	.describe('One possible response');
+	.describe('One possible response; no model or fields: no body');
 export type ApiResponse = z.infer<typeof ApiResponse>;
 
 /**

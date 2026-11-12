@@ -1,3 +1,4 @@
+import { RAIL, type Rail } from './apis.ts';
 import { groupFont, LEAF, TABLE, type LandscapeBox } from './layout.ts';
 
 /**
@@ -37,8 +38,7 @@ export function openBoxes(boxes: LandscapeBox[], cam: Camera): Set<string> {
 	// Smallest text among each box's children, in canvas px.
 	const inner = new Map<string, number>();
 	for (const b of boxes)
-		if (b.parentId)
-			inner.set(b.parentId, Math.min(inner.get(b.parentId) ?? Infinity, faceFont(b)));
+		if (b.parentId) inner.set(b.parentId, Math.min(inner.get(b.parentId) ?? Infinity, faceFont(b)));
 	const open = new Set<string>();
 	for (const b of boxes) {
 		if (!b.group || (inner.get(b.id) ?? 0) * cam.zoom < READABLE || !inView(b, cam)) continue;
@@ -65,3 +65,6 @@ export function apiHosts(boxes: LandscapeBox[], open: Set<string>): Map<string, 
 	}
 	return out;
 }
+
+/** A rail lists its endpoints once its rows would read at READABLE px; until then it shows its name. */
+export const railOpen = (rail: Rail, zoom: number) => RAIL.font * rail.scale * zoom >= READABLE;

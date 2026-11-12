@@ -4,10 +4,9 @@ import {
 	LEAF,
 	layoutLandscape,
 	modelLinks,
-	PORT,
-	portWidth,
 	relationsOf
 } from '../../src/lib/landscape/layout';
+import { railGroups, railOf } from '../../src/lib/landscape/apis';
 import { textWidth } from '../../src/lib/render/text';
 import { loadFixture, loadStrings } from './helpers';
 
@@ -65,18 +64,42 @@ describe('landscape layout', () => {
 		expect(sizes.size).toBeGreaterThan(1);
 	});
 
-	it('puts apis on their parent box and widens a leaf to fit its ports', () => {
+	it('puts apis on their parent box and keeps room for the rail across its right border', () => {
 		expect(box('erp').apis).toEqual(['order-api']);
 		const { model } = loadStrings({
 			's/s.system.yaml': 'id: s\n',
 			's/m.module.yaml': 'id: m\nparent: s\nname: M\n',
+			's/n.module.yaml': 'id: n\nparent: s\nname: N\n',
 			's/a.api.yaml': 'id: a\nparent: m\nmethod: DELETE\npath: /a/very/long/route/to/something\n'
 		});
-		const m = layoutLandscape(model).find((b) => b.id === 'm')!;
+		const boxes = layoutLandscape(model);
+		const [s, m, n] = ['s', 'm', 'n'].map((id) => boxes.find((b) => b.id === id)!);
+		const rail = railOf(model, railGroups(model, 'm', ['a']), m.height);
 		expect([m.group, m.apis]).toEqual([false, ['a']]);
-		expect(m.width).toBe(
-			portWidth('DELETE', '/a/very/long/route/to/something', PORT.font) + 2 * PORT.margin
+		// Half the rail is inside the leaf, beside its name; half outside, clear of its sibling
+		// and inside its parent.
+		expect(m.width).toBe(LEAF.minWidth + rail.width / 2);
+		const railRight = m.absX + m.width + rail.width / 2;
+		expect(n.absX >= railRight || n.absY >= m.absY + m.height || m.absY >= n.absY + n.height).toBe(
+			true
 		);
+		expect(railRight).toBeLessThanOrEqual(s.absX + s.width);
+	});
+
+	it('counts the api fields sending into or returning each model field', () => {
+		const { model } = loadStrings({
+			's/s.system.yaml': 'id: s\n',
+			's/m.model.yaml': 'id: m\nownedBy: s\nfields: [{ id: f, name: f, type: int }]\n',
+			's/a.api.yaml': [
+				'id: a',
+				'parent: s',
+				'method: POST',
+				'path: /m',
+				'request: { fields: [{ id: q, name: q, type: int, to: [f] }] }',
+				'responses: [{ status: 200, fields: [{ id: r, name: r, type: int, from: [f] }] }]'
+			].join('\n')
+		});
+		expect(relationsOf(model).api.get('f')).toBe(2);
 	});
 
 	it('is empty for an empty model', () => {

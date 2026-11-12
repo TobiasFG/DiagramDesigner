@@ -17,14 +17,30 @@
 		view?: ModelView;
 		/** Names of the models and fields the fields point at (ref, model, from), by id. */
 		labels?: Record<string, string>;
-		/** How many fields refer to and derive from each field, by field id. */
-		incoming?: Record<string, { ref: number; from: number }>;
+		/** How many fields refer to and derive from each field, and api fields use it, by field id. */
+		incoming?: Record<string, { ref: number; from: number; api: number }>;
 		/** Selection, focus and flash; read here so they never rebuild the nodes. */
 		state: ViewState;
 		onfield?: (field: string, ev: 'enter' | 'leave' | 'click') => void;
-		/** Apis drawn on this box's border: its own, and those of hidden boxes inside it. */
-		apis?: { id: string; name: string; method: string; path: string }[];
+		/** Rail on this box's right border: its own apis, and those of hidden boxes inside it. */
+		rail?: RailView;
 		onapi?: (api: string) => void;
+		/** The closed rail was clicked: zoom in until it opens. */
+		onrail?: () => void;
+	}
+
+	export interface RailView {
+		top: number;
+		width: number;
+		height: number;
+		scale: number;
+		methodWidth: number;
+		/** Rows read at 12px or more, so they are listed; else the rail shows its name. */
+		open: boolean;
+		groups: {
+			title?: string;
+			apis: { id: string; name: string; method: string; path: string }[];
+		}[];
 	}
 </script>
 
@@ -39,17 +55,21 @@
 		keysOf,
 		LEAF,
 		LINK,
-		PORT,
+		slotCount,
 		subtitle,
 		TABLE,
 		typeText
 	} from '#lib/landscape/layout.ts';
+	import { RAIL } from '#lib/landscape/apis.ts';
 
 	let { id, data, width = 0, height = 0 }: NodeProps = $props();
 	const d = $derived(data as LandscapeNodeData);
 	const hot = $derived(d.state.hot[id]);
 	const picked = $derived(d.state.field?.box === id ? d.state.field.field : undefined);
 	const flash = $derived(d.state.flash?.box === id ? d.state.flash.field : undefined);
+	const apiParts = $derived(d.state.apiBoxes[id]);
+	const dim = $derived(d.state.apiDim[id]);
+	const INCOMING = { inRef: 'ref', inFrom: 'from', inApi: 'api' } as const;
 	const plural = (n: number, one: string, many: string) =>
 		`${n} field${n > 1 ? 's' : ''} ${n > 1 ? many : one}`;
 	// A leaf is fitted round its name, so the name keeps one size.
@@ -75,6 +95,7 @@
 	class:group={d.group}
 	class:selected={d.state.selectedNodes.includes(id)}
 	class:peer-box={d.state.peerBoxes[id]}
+	class:api-box={apiParts}
 	style:--fill="var(--sdv-{d.kind}-fill, var(--sdv-container-fill))"
 	style:--stroke="var(--sdv-{d.kind}-stroke, var(--sdv-container-stroke))"
 	style:--text="var(--sdv-{d.kind}-text, var(--sdv-container-text))"
@@ -95,7 +116,9 @@
 			<div class="thead" style:height="{TABLE.head}px">
 				<div class="name" style:font-size="{TABLE.title}px">{d.name}</div>
 				<div class="note" style:font-size="{TABLE.note}px">
-					{subtitle(d.view ?? 'class', d.owner)}
+					{subtitle(d.view ?? 'class', d.owner)}{#if apiParts}<span class="api-parts">
+							· {apiParts.join(', ')}</span
+						>{/if}
 				</div>
 			</div>
 			{#if d.fields?.length}
@@ -123,6 +146,7 @@
 							class:self={hot?.[f.id] === 'self'}
 							class:picked={picked === f.id}
 							class:flash={flash === f.id}
+							class:dim={dim?.[f.id]}
 							role="button"
 							tabindex="-1"
 							onmouseenter={() => d.onfield?.(f.id, 'enter')}
@@ -156,9 +180,9 @@
 									{:else}
 										{#each c.slots ?? [] as s (s)}
 											{@const n =
-												s === 'inRef'
-													? (d.incoming?.[f.id]?.ref ?? 0)
-													: (d.incoming?.[f.id]?.from ?? 0)}
+												s === 'inRef' || s === 'inFrom' || s === 'inApi'
+													? (d.incoming?.[f.id]?.[INCOMING[s]] ?? 0)
+													: 0}
 											<span
 												class="slot {s}"
 												style:min-width="{LINK.slot}px"
@@ -171,7 +195,9 @@
 															? plural(n, 'refers here', 'refer here')
 															: s === 'inFrom' && n
 																? plural(n, 'derives from this', 'derive from this')
-																: undefined}
+																: s === 'inApi' && n
+																	? `${n} api field${n > 1 ? 's' : ''} send into or return this`
+																	: undefined}
 											>
 												{#if s === 'ref' && f.ref}
 													<svg width={LINK.icon} height={LINK.icon} viewBox="0 0 14 14">
@@ -184,8 +210,8 @@
 															d="M6 3.5 1 7l5 3.5Z"
 														/>
 													</svg>{#if f.derived}<i>ƒ</i>{/if}
-												{:else if (s === 'inRef' || s === 'inFrom') && n}
-													<span class="count">{n}</span>
+												{:else if (s === 'inRef' || s === 'inFrom' || s === 'inApi') && n}
+													<span class="count">{slotCount(s, n)}</span>
 												{/if}
 											</span>
 										{/each}
@@ -241,33 +267,76 @@
 			/>
 		{/each}
 	{:else}
-		<div class="face" style:font-size="{font}px">
+		<div
+			class="face"
+			style:font-size="{font}px"
+			style:padding-right={!d.group && d.rail ? `${d.rail.width / 2}px` : undefined}
+		>
 			<div class="name">{d.name}</div>
 		</div>
 	{/if}
-	{#if d.apis?.length}
-		<!-- A group's ports keep one size on screen, like its header, until the box is small. -->
+	{#if d.rail}
+		{@const r = d.rail}
+		<!-- Straddles the right border; its rows are laid out at full size, then scaled to fit. -->
 		<div
-			class="ports"
-			style:font-size={d.group
-				? `min(calc(11px / var(--z)), ${Math.max(8, height * 0.05)}px)`
-				: `${PORT.font}px`}
-			style:gap="{PORT.gap}px"
-			style:padding="0 {PORT.margin}px"
+			class="rail"
+			class:closed={!r.open}
+			style:left="{width - r.width / 2}px"
+			style:top="{r.top}px"
+			style:width="{r.width}px"
+			style:height="{r.height}px"
 		>
-			{#each d.apis as a (a.id)}
+			{#if r.open}
+				<div
+					class="rail-inner"
+					style:width="{r.width / r.scale}px"
+					style:transform="scale({r.scale})"
+				>
+					<div class="rail-head" style:height="{RAIL.head}px" style:font-size="{RAIL.label}px">
+						APIs
+					</div>
+					{#each r.groups as g, gi (gi)}
+						{#if g.title}
+							<div
+								class="rail-group"
+								style:height="{RAIL.group}px"
+								style:font-size="{RAIL.label}px"
+							>
+								{g.title}
+							</div>
+						{/if}
+						{#each g.apis as a (a.id)}
+							<button
+								class="rail-row"
+								class:picked={d.state.api === a.id}
+								style:height="{RAIL.row}px"
+								style:font-size="{RAIL.font}px"
+								style:padding="0 {RAIL.pad}px"
+								style:gap="{RAIL.gap}px"
+								title={a.name}
+								onclick={(e) => {
+									e.stopPropagation();
+									d.onapi?.(a.id);
+								}}
+							>
+								<b style:color={methodColor(a.method)} style:min-width="{r.methodWidth}px"
+									>{a.method}</b
+								><span>{a.path}</span>
+							</button>
+						{/each}
+					{/each}
+				</div>
+			{:else}
 				<button
-					class="port"
-					class:picked={d.state.api === a.id}
-					title={a.name}
+					class="rail-name"
+					style:font-size="{Math.min(r.width / 2.6, r.height * 0.2)}px"
+					title="Zoom in to list the apis"
 					onclick={(e) => {
 						e.stopPropagation();
-						d.onapi?.(a.id);
-					}}
+						d.onrail?.();
+					}}>APIs</button
 				>
-					<b style:color={methodColor(a.method)}>{a.method}</b>{a.path}
-				</button>
-			{/each}
+			{/if}
 		</div>
 	{/if}
 </div>
@@ -488,41 +557,80 @@
 		opacity: 0;
 		pointer-events: none;
 	}
-	/* Ports straddle the top border, right-aligned, wrapping into the box when they run out. */
-	.ports {
-		position: absolute;
-		left: 0;
-		right: 0;
-		top: -0.8em;
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: flex-end;
-		pointer-events: none;
+	.node.api-box {
+		outline: 2px solid var(--sdv-link-ref);
+		outline-offset: 3px;
 	}
-	.port {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.4em;
-		height: 1.6em;
-		padding: 0 0.5em;
-		border: 1px solid var(--sdv-api-stroke);
-		border-radius: 0.8em;
+	.api-parts {
+		color: var(--sdv-link-ref);
+		font-weight: 600;
+	}
+	.row.dim {
+		opacity: 0.35;
+	}
+	.slot.inApi .count {
+		background: var(--sdv-api-stroke);
+	}
+	/* The rail straddles the right border; the half outside sits in room the layout keeps. */
+	.rail {
+		position: absolute;
+		box-sizing: border-box;
+		overflow: hidden;
 		background: var(--sdv-api-fill);
+		border: 1px solid var(--sdv-api-stroke);
 		color: var(--sdv-api-text);
-		font: inherit;
+		pointer-events: auto;
+		cursor: default;
+	}
+	.rail-inner {
+		transform-origin: 0 0;
+	}
+	.rail-head,
+	.rail-group {
+		display: flex;
+		align-items: center;
+		padding: 0 10px;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		white-space: nowrap;
+		color: var(--sdv-text-muted);
+		background: var(--sdv-model-header);
+		border-bottom: 1px solid var(--sdv-model-stroke);
+	}
+	.rail-row {
+		display: flex;
+		align-items: center;
+		width: 100%;
+		box-sizing: border-box;
+		border: none;
+		border-bottom: 1px solid var(--sdv-model-stroke);
+		background: none;
+		color: inherit;
+		font-family: inherit;
+		text-align: left;
 		white-space: nowrap;
 		cursor: pointer;
-		pointer-events: auto;
 	}
-	.port b {
+	.rail-row b {
 		font-weight: 700;
 	}
-	.port:hover {
-		border-color: var(--sdv-selection);
+	.rail-row:hover {
+		background: var(--sdv-row-hover);
 	}
-	.port.picked {
-		border-color: var(--sdv-selection);
-		box-shadow: 0 0 0 1px var(--sdv-selection);
+	.rail-row.picked {
+		background: var(--sdv-row-self);
+		box-shadow: inset 3px 0 0 var(--sdv-selection);
+	}
+	.rail-name {
+		width: 100%;
+		height: 100%;
+		border: none;
+		background: none;
+		color: inherit;
+		font-family: inherit;
+		font-weight: 600;
+		cursor: zoom-in;
+		padding: 0;
 	}
 	.header {
 		position: absolute;

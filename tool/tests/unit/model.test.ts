@@ -323,6 +323,52 @@ describe('entity checks', () => {
 		]);
 	});
 
+	it('checks api bodies: model or own fields, omit and pick, and where fields go', () => {
+		const { diagnostics, model } = loadStrings({
+			's/s.system.yaml': 'id: s\n',
+			's/m.model.yaml': 'id: m\nownedBy: s\nfields: [{ id: f, name: f, type: int }]\n',
+			's/ok.api.yaml': [
+				'id: ok',
+				'parent: s',
+				'method: POST',
+				'path: /m',
+				'request: { fields: [{ id: q, name: q, type: int, to: [f] }, { id: q2, name: m, model: m }] }',
+				'responses: [{ status: 200, model: m, pick: [f] }, { status: 201, fields: [{ id: r, name: r, type: int, from: [f] }] }]'
+			].join('\n'),
+			's/bad.api.yaml': [
+				'id: bad',
+				'parent: s',
+				'method: POST',
+				'path: /m',
+				'request: { model: m, omit: [ghost], pick: [f], fields: [{ id: x, name: x, type: int, from: [f] }] }',
+				'responses:',
+				'  - { status: 200, omit: [f] }',
+				'  - { status: 201, fields: [{ id: y, name: y, type: int, to: [f] }, { id: z, name: z, type: int, from: [nope] }] }',
+				'  - { status: 202, fields: [{ id: w, name: w, type: int }] }'
+			].join('\n'),
+			's/empty.api.yaml': 'id: empty\nparent: s\nmethod: POST\npath: /e\nrequest: {}\n'
+		});
+		expect(codes(diagnostics)).toEqual([
+			'api-body',
+			'api-body',
+			'api-body',
+			'api-body',
+			'api-field-direction',
+			'api-field-direction',
+			'dangling-ref',
+			'unknown-field',
+			'untraced-field',
+			'untraced-field',
+			'untraced-field'
+		]);
+		// A field pointing the wrong way is also untraced: x, y and w.
+		expect(
+			diagnostics.filter((d) => d.code === 'untraced-field').every((d) => d.severity === 'warning')
+		).toBe(true);
+		expect(model.apiFields.get('q')).toMatchObject({ apiId: 'ok', part: 'request' });
+		expect(model.apiFields.get('r')).toMatchObject({ apiId: 'ok', part: 201 });
+	});
+
 	it('gives each system its own folder', () => {
 		const { diagnostics } = loadStrings({
 			'a/a.system.yaml': 'id: a\n',

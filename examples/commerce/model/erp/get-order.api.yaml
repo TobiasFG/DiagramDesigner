@@ -7,5 +7,5 @@ auth: bearer
 params:
   - { name: orderNo, in: path, type: string }
 responses:
-  - { status: 200, model: llns90zy3d }
+  - { status: 200, model: llns90zy3d, omit: [jzhfxrngck] }
   - { status: 404, description: No such order }

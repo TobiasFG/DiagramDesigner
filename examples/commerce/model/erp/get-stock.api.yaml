@@ -8,4 +8,9 @@ params:
   - { name: productId, in: path, type: uuid }
   - { name: warehouse, in: query, type: string }
 responses:
-  - { status: 200, model: z507p6fu7v, many: true }
+  - status: 200
+    many: true
+    fields:
+      - { id: p6mv9cfbr0, name: productId, type: uuid, required: true, from: [on60ji7dov] }
+      - { id: t9gcvu4e1t, name: warehouse, type: string, required: true, from: [n2ij7hp7nc] }
+      - { id: vgxi4l3bdo, name: available, type: decimal, required: true, from: [bvr0hth4v4, xtqs0jed9v], derived: onHand - reserved }

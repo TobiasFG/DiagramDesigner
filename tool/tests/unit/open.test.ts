@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LandscapeBox } from '../../src/lib/landscape/layout';
-import { apiHosts, openBoxes, type Camera } from '../../src/lib/landscape/open';
+import { apiHosts, openBoxes, railOpen, type Camera } from '../../src/lib/landscape/open';
+import type { Rail } from '../../src/lib/landscape/apis';
 
 const box = (
 	id: string,
@@ -80,5 +81,14 @@ describe('api hosts', () => {
 
 	it('moves an api to the nearest shown box round its hidden parent', () => {
 		expect(apiHosts(withApis, new Set())).toEqual(new Map([['a', ['a1', 'm1', 'm2']]]));
+	});
+});
+
+describe('api rail', () => {
+	it('lists its endpoints once their rows read at 12px, else shows its name', () => {
+		const rail = { scale: 0.25 } as Rail;
+		// Rows 12 × 0.25 × 4 = 12px.
+		expect(railOpen(rail, 4)).toBe(true);
+		expect(railOpen(rail, 3.9)).toBe(false);
 	});
 });

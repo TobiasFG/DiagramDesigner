@@ -215,12 +215,103 @@
       "type": "object",
       "properties": {
         "model": {
+          "description": "Id of the model sent or returned",
           "type": "string",
-          "pattern": "^[a-z][a-z0-9-]*$",
-          "description": "Id of the model sent or returned"
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "omit": {
+          "description": "With model: ids of its fields left out",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "Kebab-case identifier"
+          }
+        },
+        "pick": {
+          "description": "With model: ids of the only fields sent",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "Kebab-case identifier"
+          }
+        },
+        "fields": {
+          "description": "A shape of its own, instead of a model",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*$",
+                "description": "Unique across the whole design, like model field ids"
+              },
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "description": "Primitive type; give either type or model",
+                "type": "string"
+              },
+              "model": {
+                "description": "Id of a model this field holds",
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*$"
+              },
+              "many": {
+                "description": "Holds a list of type or model",
+                "type": "boolean"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "nullable": {
+                "type": "boolean"
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "number"
+                ]
+              },
+              "to": {
+                "description": "Request fields: ids of the model fields its value goes into",
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$",
+                  "description": "Kebab-case identifier"
+                }
+              },
+              "from": {
+                "description": "Response fields: ids of the fields its value comes from",
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$",
+                  "description": "Kebab-case identifier"
+                }
+              },
+              "derived": {
+                "description": "How the value is changed on the way",
+                "type": [
+                  "string",
+                  "number"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false,
+            "description": "Field of a body shape written on the api"
+          }
         },
         "many": {
-          "description": "A list of the model",
+          "description": "A list of the model or shape",
           "type": "boolean"
         },
         "contentType": {
@@ -228,9 +319,6 @@
           "type": "string"
         }
       },
-      "required": [
-        "model"
-      ],
       "additionalProperties": false
     },
     "responses": {
@@ -245,12 +333,103 @@
             "maximum": 599
           },
           "model": {
-            "description": "Id of the model returned; omit for no body",
+            "description": "Id of the model sent or returned",
             "type": "string",
             "pattern": "^[a-z][a-z0-9-]*$"
           },
+          "omit": {
+            "description": "With model: ids of its fields left out",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$",
+              "description": "Kebab-case identifier"
+            }
+          },
+          "pick": {
+            "description": "With model: ids of the only fields sent",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$",
+              "description": "Kebab-case identifier"
+            }
+          },
+          "fields": {
+            "description": "A shape of its own, instead of a model",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$",
+                  "description": "Unique across the whole design, like model field ids"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "description": "Primitive type; give either type or model",
+                  "type": "string"
+                },
+                "model": {
+                  "description": "Id of a model this field holds",
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                },
+                "many": {
+                  "description": "Holds a list of type or model",
+                  "type": "boolean"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "nullable": {
+                  "type": "boolean"
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "to": {
+                  "description": "Request fields: ids of the model fields its value goes into",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]*$",
+                    "description": "Kebab-case identifier"
+                  }
+                },
+                "from": {
+                  "description": "Response fields: ids of the fields its value comes from",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]*$",
+                    "description": "Kebab-case identifier"
+                  }
+                },
+                "derived": {
+                  "description": "How the value is changed on the way",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false,
+              "description": "Field of a body shape written on the api"
+            }
+          },
           "many": {
-            "description": "A list of the model",
+            "description": "A list of the model or shape",
             "type": "boolean"
           },
           "contentType": {
@@ -268,7 +447,7 @@
           "status"
         ],
         "additionalProperties": false,
-        "description": "One possible response"
+        "description": "One possible response; no model or fields: no body"
       }
     },
     "name": {

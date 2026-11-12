@@ -91,7 +91,8 @@ impact can be traced.
 - Class cards have a tinted name bar and the subtitle *Model*; stored cards say *Stored*. A
   card drawn away from its owner adds *owned by …*; a referenced class (`models`) is dashed.
 - Type column shows `Customer` / `OrderLine[]`. A link strip at the row end marks `ref` (→),
-  `from` (dashed ←, `ƒ` when `derived`) and how many fields point at the field (count pill).
+  `from` (dashed ←, `ƒ` when `derived`), how many fields point at the field (count pill) and
+  how many api fields send into or return it (`API n`, see [api](api.md)).
 - Lines between sibling cards: `ref` arrow at the target; `model` diamond at the holder;
   `from` dashed, arrow at the derived field.
 - Hover a row: its links light up, drawn to the nearest card showing the other end, even in

@@ -1,6 +1,7 @@
-import type { ElementInfo, Model } from '../model/model';
+import type { Model } from '../model/model';
 import type { Element, ModelField, ModelIndex } from '../model/schema';
 import { textWidth } from '../render/text';
+import { railGroups, railOf } from './apis';
 
 /** A model is drawn as a class where it is owned, as a table where it is stored. */
 export type ModelView = 'class' | 'table';
@@ -33,13 +34,15 @@ export interface LandscapeBox {
 	view?: ModelView;
 	/** The model's fields that exist in this view. */
 	fields?: ModelField[];
-	/** Apis of the element, drawn as ports on the border (see `apiHosts`). */
+	/** Apis of the element, drawn on a rail across its right border (see `apiHosts`). */
 	apis?: string[];
 }
 
 interface Size {
 	width: number;
 	height: number;
+	/** Room kept clear right of the box, for the half of its api rail outside it. */
+	right?: number;
 }
 
 interface Item {
@@ -56,16 +59,6 @@ interface Item {
 export const LEAF = { font: 15, padX: 18, height: 52, minWidth: 100 };
 /** A closed group's name scales with the box, so a system reads the same at any size. */
 export const groupFont = (width: number, height: number) => Math.min(width * 0.085, height * 0.2);
-/**
- * An api is a port on its parent's border: a chip straddling the top edge, right-aligned. On a
- * leaf the chip has this fixed font size, so the leaf is made wide enough for its chips.
- */
-export const PORT = { font: 10, gap: 4, margin: 8 };
-
-/** Chip width: method in bold, then the path, with 0.5em side padding and a 0.4em gap. */
-export const portWidth = (method: string, path: string, font: number) =>
-	textWidth(method, font, true) + textWidth(path, font) + 1.4 * font + 2;
-
 const GAP = 32;
 const SYSTEM_GAP = 120;
 const PAD = 32;
@@ -95,10 +88,11 @@ export type FieldColumn = 'name' | 'type' | 'required' | 'nullable' | 'constrain
 
 /**
  * Marks in a row's link strip: a foreign key (`ref`), lineage (`from`), and how many fields
- * refer to (`inRef`) or derive from (`inFrom`) this one. Each kind has its own slot, so marks
+ * refer to (`inRef`) or derive from (`inFrom`) this one, and how many api fields send into or
+ * return it (`inApi`). Each kind has its own slot, so marks
  * line up down the card.
  */
-export type LinkSlot = 'ref' | 'from' | 'inRef' | 'inFrom';
+export type LinkSlot = 'ref' | 'from' | 'inRef' | 'inFrom' | 'inApi';
 
 /** Link strip sizes in px, shared with LandscapeNode. */
 export const LINK = { icon: 14, slot: 20, count: 10 };
@@ -127,11 +121,13 @@ export interface Relations {
 	out: Map<string, FieldLink[]>;
 	/** By the field or model they point at. */
 	in: Map<string, FieldLink[]>;
+	/** By model field: how many api fields send into it (`to`) or return it (`from`). */
+	api: Map<string, number>;
 }
 
 /** Every field link in the design, both ways round. Links to unknown ids are left out. */
 export function relationsOf(model: Model): Relations {
-	const rels: Relations = { out: new Map(), in: new Map() };
+	const rels: Relations = { out: new Map(), in: new Map(), api: new Map() };
 	const add = (m: Map<string, FieldLink[]>, k: string, l: FieldLink) =>
 		m.set(k, [...(m.get(k) ?? []), l]);
 	for (const [id, info] of model.fields) {
@@ -146,14 +142,23 @@ export function relationsOf(model: Model): Relations {
 			add(rels.in, l.to, l);
 		}
 	}
+	for (const f of model.apiFields.values())
+		for (const id of [...(f.def.to ?? []), ...(f.def.from ?? [])])
+			if (model.fields.has(id)) rels.api.set(id, (rels.api.get(id) ?? 0) + 1);
 	return rels;
 }
 
 /** Fields pointing at a field: foreign keys to it (`ref`) or fields derived from it (`from`). */
-export const incomingCount = (rels: Relations, fieldId: string, kind: 'ref' | 'from') =>
-	rels.in.get(fieldId)?.filter((l) => l.kind === kind).length ?? 0;
+export const incomingCount = (rels: Relations, fieldId: string, kind: 'ref' | 'from' | 'api') =>
+	kind === 'api'
+		? (rels.api.get(fieldId) ?? 0)
+		: (rels.in.get(fieldId)?.filter((l) => l.kind === kind).length ?? 0);
 
-const IN_KIND = { inRef: 'ref', inFrom: 'from' } as const;
+const IN_KIND = { inRef: 'ref', inFrom: 'from', inApi: 'api' } as const;
+
+/** What an incoming slot's pill says. */
+export const slotCount = (s: 'inRef' | 'inFrom' | 'inApi', n: number) =>
+	s === 'inApi' ? `API ${n}` : String(n);
 
 /** Badges after a field's name. */
 export const keysOf = (f: ModelField) => [f.pk && 'PK', f.pi && 'PI'].filter((k) => k) as string[];
@@ -309,18 +314,19 @@ function linkSlots(fields: ModelField[], rels: Relations): LinkSlot[] {
 		ref: fields.some((f) => f.ref),
 		from: fields.some((f) => f.from?.length),
 		inRef: fields.some((f) => incomingCount(rels, f.id, 'ref') > 0),
-		inFrom: fields.some((f) => incomingCount(rels, f.id, 'from') > 0)
+		inFrom: fields.some((f) => incomingCount(rels, f.id, 'from') > 0),
+		inApi: fields.some((f) => incomingCount(rels, f.id, 'api') > 0)
 	};
-	return (['ref', 'from', 'inRef', 'inFrom'] as const).filter((s) => has[s]);
+	return (['ref', 'from', 'inRef', 'inFrom', 'inApi'] as const).filter((s) => has[s]);
 }
 
 /** An incoming slot holds a count pill, so it is as wide as the largest one. */
 const slotWidth = (s: LinkSlot, fields: ModelField[], rels: Relations) =>
-	s === 'inRef' || s === 'inFrom'
+	s === 'inRef' || s === 'inFrom' || s === 'inApi'
 		? 14 +
 			Math.max(
 				...fields.map((f) =>
-					textWidth(String(incomingCount(rels, f.id, IN_KIND[s])), LINK.count, true)
+					textWidth(slotCount(s, incomingCount(rels, f.id, IN_KIND[s])), LINK.count, true)
 				)
 			)
 		: LINK.slot;
@@ -356,17 +362,8 @@ function tableLayout(
 	return { size: { width: Math.ceil(width) + 2, height: height + 2 }, cols };
 }
 
-const leafSize = (name: string, apis: ElementInfo[]): Size => ({
-	width: Math.max(
-		LEAF.minWidth,
-		textWidth(name, LEAF.font, true) + 2 * LEAF.padX,
-		apis.reduce(
-			(w, a) => w + portWidth(a.def.method ?? '', a.def.path ?? '', PORT.font) + PORT.gap,
-			2 * PORT.margin - PORT.gap
-		)
-	),
-	height: LEAF.height
-});
+const leafWidth = (name: string) =>
+	Math.max(LEAF.minWidth, textWidth(name, LEAF.font, true) + 2 * LEAF.padX);
 
 /** Where a box goes within a block of siblings, relative to the block. */
 interface Slot {
@@ -395,7 +392,7 @@ function masonry(sizes: Size[], cols: number, gap: number): Block {
 	const slots: Slot[] = [];
 	let x = 0;
 	for (const column of columns) {
-		const width = Math.max(...column.map((i) => sizes[i].width));
+		const width = Math.max(...column.map((i) => sizes[i].width + (sizes[i].right ?? 0)));
 		let y = 0;
 		for (const i of column) {
 			slots[i] = { x, y, ...sizes[i] };
@@ -461,6 +458,13 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 		item.ref || item.view || item.boundary
 			? []
 			: (model.elements.get(item.el)?.childIds.filter(isApi) ?? []);
+	// Every api inside an element, which all move to its rail while it is closed.
+	const deepApis = (id: string): string[] =>
+		model.elements.get(id)!.childIds.flatMap((c) => (isApi(c) ? [c] : deepApis(c)));
+	const railWidth = (el: string, apis: string[], height: number) =>
+		apis.length ? railOf(model, railGroups(model, el, apis), height).width : 0;
+	/** Half of the own rail, which sits inside the box, so children keep clear of it. */
+	const inner = new Map<string, number>();
 	const colsFor = (n: number) => Math.ceil(Math.sqrt(n));
 	const arrange = (items: Item[], cols: number, gap: number) =>
 		masonry(items.map(measure), cols, gap);
@@ -487,11 +491,16 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 			);
 			cards.set(item.id, { cols: t.cols, fields });
 			size = t.size;
-		} else
-			size = leafSize(
-				info?.name ?? item.el,
-				apisOf(item).map((id) => model.elements.get(id)!)
-			);
+		} else size = { width: leafWidth(info?.name ?? item.el), height: LEAF.height };
+		const own = railWidth(item.el, apisOf(item), size.height) / 2;
+		if (own) {
+			inner.set(item.id, own);
+			size.width += own;
+		}
+		// Closed, the box carries the apis of everything inside it too.
+		const deep = item.ref || item.view || item.boundary ? [] : deepApis(item.el);
+		const right = Math.max(own, railWidth(item.el, deep, size.height) / 2);
+		if (right) size.right = right;
 		sizes.set(item.id, size);
 		return size;
 	}
@@ -538,7 +547,7 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 					{
 						x: absX + PAD,
 						y: absY + HEADER,
-						width: slot.width - 2 * PAD,
+						width: slot.width - 2 * PAD - (inner.get(item.id) ?? 0),
 						height: slot.height - HEADER - PAD
 					},
 					box

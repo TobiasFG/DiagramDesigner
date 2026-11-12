@@ -14,8 +14,14 @@ export class ViewState {
 	hover = $state.raw<FieldRef | null>(null);
 	/** The field row clicked; its links stay drawn and the inspector shows them. */
 	field = $state.raw<FieldRef | null>(null);
-	/** The api port clicked; the inspector shows it. */
+	/** The api clicked on a rail; a card beside it shows it. */
 	api = $state.raw<string | null>(null);
+	/** A field of the picked api's own body shape under the pointer; its lineage is drawn. */
+	apiField = $state.raw<string | null>(null);
+	/** Boxes the picked api's bodies use, with the parts using them (request, 201...). */
+	apiBoxes = $state.raw<Record<string, string[]>>({});
+	/** Rows a lit card has that the picked api's body leaves out, by box. */
+	apiDim = $state.raw<Record<string, Record<string, true>>>({});
 	/** Rows followed to from the inspector, for Back. */
 	trail = $state.raw<FieldRef[]>([]);
 	/** A row flashed after flying to it. */
