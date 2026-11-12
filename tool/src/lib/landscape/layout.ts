@@ -77,8 +77,17 @@ export const TABLE = {
 	check: '✓'
 };
 
-export type FieldColumn =
-	'name' | 'type' | 'required' | 'nullable' | 'constraints' | 'ref' | 'from';
+export type FieldColumn = 'name' | 'type' | 'required' | 'nullable' | 'constraints' | 'links';
+
+/**
+ * Marks in a row's link strip: a foreign key (`ref`), lineage (`from`), and how many fields
+ * refer to (`inRef`) or derive from (`inFrom`) this one. Each kind has its own slot, so marks
+ * line up down the card.
+ */
+export type LinkSlot = 'ref' | 'from' | 'inRef' | 'inFrom';
+
+/** Link strip sizes in px, shared with LandscapeNode. */
+export const LINK = { icon: 14, slot: 20, count: 10 };
 
 export interface TableColumn {
 	key: FieldColumn;
@@ -86,7 +95,51 @@ export interface TableColumn {
 	/** Hover text for a short label. */
 	title?: string;
 	width: number;
+	/** The link strip's slots, in order. */
+	slots?: LinkSlot[];
 }
+
+/** One edge of the field graph: field `field` refers to, derives from, or holds `to`. */
+export interface FieldLink {
+	kind: 'ref' | 'from' | 'model';
+	/** The field the link is written on. */
+	field: string;
+	/** A field id, or a model id for `ref` to a model and `model`. */
+	to: string;
+}
+
+export interface Relations {
+	/** By the field the links are written on. */
+	out: Map<string, FieldLink[]>;
+	/** By the field or model they point at. */
+	in: Map<string, FieldLink[]>;
+}
+
+/** Every field link in the design, both ways round. Links to unknown ids are left out. */
+export function relationsOf(model: Model): Relations {
+	const rels: Relations = { out: new Map(), in: new Map() };
+	const add = (m: Map<string, FieldLink[]>, k: string, l: FieldLink) =>
+		m.set(k, [...(m.get(k) ?? []), l]);
+	for (const [id, info] of model.fields) {
+		const f = info.def;
+		const links: FieldLink[] = [
+			...(f.ref ? [{ kind: 'ref' as const, field: id, to: f.ref }] : []),
+			...(f.model ? [{ kind: 'model' as const, field: id, to: f.model }] : []),
+			...(f.from ?? []).map((to) => ({ kind: 'from' as const, field: id, to }))
+		].filter((l) => model.fields.has(l.to) || model.elements.has(l.to));
+		for (const l of links) {
+			add(rels.out, id, l);
+			add(rels.in, l.to, l);
+		}
+	}
+	return rels;
+}
+
+/** Fields pointing at a field: foreign keys to it (`ref`) or fields derived from it (`from`). */
+export const incomingCount = (rels: Relations, fieldId: string, kind: 'ref' | 'from') =>
+	rels.in.get(fieldId)?.filter((l) => l.kind === kind).length ?? 0;
+
+const IN_KIND = { inRef: 'ref', inFrom: 'from' } as const;
 
 /** Badges after a field's name. */
 export const keysOf = (f: ModelField) => [f.pk && 'PK', f.pi && 'PI'].filter((k) => k) as string[];
@@ -105,10 +158,6 @@ export function refLabel(model: Model, id: string): string | undefined {
 /** A field's type: its primitive or the held model's name, with `[]` for a list. */
 export const typeText = (f: ModelField, label: (id: string) => string | undefined) =>
 	(f.model ? (label(f.model) ?? f.model) : (f.type ?? '')) + (f.many ? '[]' : '');
-
-/** Where a field's value comes from: its source fields, then how it is derived. */
-export const fromText = (f: ModelField, label: (id: string) => string | undefined) =>
-	[(f.from ?? []).map((id) => label(id) ?? id).join(', '), f.derived].filter((s) => s).join(' · ');
 
 /** An index's fields by name, in index order. */
 export const indexFields = (ix: ModelIndex, fields: ModelField[]) =>
@@ -194,7 +243,8 @@ const badgesWidth = (labels: string[]) =>
 function fieldColumns(
 	fields: ModelField[],
 	view: ModelView,
-	label: (id: string) => string | undefined
+	label: (id: string) => string | undefined,
+	rels: Relations
 ): TableColumn[] {
 	const text = (s: string) => textWidth(s, TABLE.row);
 	const defs: [FieldColumn, string, string | undefined, number[], boolean][] = [
@@ -217,23 +267,9 @@ function fieldColumns(
 			undefined,
 			fields.map((f) => badgesWidth(f.constraints ?? [])),
 			false
-		],
-		[
-			'ref',
-			'References',
-			undefined,
-			fields.map((f) => text(f.ref ? (label(f.ref) ?? '') : '')),
-			false
-		],
-		[
-			'from',
-			'Source',
-			'Where the value comes from',
-			fields.map((f) => text(fromText(f, label))),
-			false
 		]
 	];
-	return defs
+	const cols: TableColumn[] = defs
 		.filter(([, , , ws, always]) => always || ws.some((w) => w > 0))
 		.map(([key, label, title, ws]) => ({
 			key,
@@ -241,7 +277,39 @@ function fieldColumns(
 			title,
 			width: Math.max(textWidth(label, TABLE.label, true), ...ws) + 2 * TABLE.pad
 		}));
+	const slots = linkSlots(fields, rels);
+	if (slots.length)
+		cols.push({
+			key: 'links',
+			label: '',
+			title: 'References, sources and incoming links; hover or click a row',
+			slots,
+			width: slots.reduce((w, s) => w + slotWidth(s, fields, rels), 0) + TABLE.pad
+		});
+	return cols;
 }
+
+/** The slots a card's link strip needs: those some field fills. */
+function linkSlots(fields: ModelField[], rels: Relations): LinkSlot[] {
+	const has: Record<LinkSlot, boolean> = {
+		ref: fields.some((f) => f.ref),
+		from: fields.some((f) => f.from?.length),
+		inRef: fields.some((f) => incomingCount(rels, f.id, 'ref') > 0),
+		inFrom: fields.some((f) => incomingCount(rels, f.id, 'from') > 0)
+	};
+	return (['ref', 'from', 'inRef', 'inFrom'] as const).filter((s) => has[s]);
+}
+
+/** An incoming slot holds a count pill, so it is as wide as the largest one. */
+const slotWidth = (s: LinkSlot, fields: ModelField[], rels: Relations) =>
+	s === 'inRef' || s === 'inFrom'
+		? 14 +
+			Math.max(
+				...fields.map((f) =>
+					textWidth(String(incomingCount(rels, f.id, IN_KIND[s])), LINK.count, true)
+				)
+			)
+		: LINK.slot;
 
 /** One index per row: its kind badge, its name, then its fields. */
 const indexWidth = (ix: ModelIndex, fields: ModelField[]) =>
@@ -257,10 +325,11 @@ function tableLayout(
 	fields: ModelField[],
 	view: ModelView,
 	owner: string | undefined,
-	label: (id: string) => string | undefined
+	label: (id: string) => string | undefined,
+	rels: Relations
 ): { size: Size; cols: TableColumn[] } {
 	const indexes = view === 'table' ? (def.indexes ?? []) : [];
-	const cols = fieldColumns(fields, view, label);
+	const cols = fieldColumns(fields, view, label, rels);
 	// The 2px is the card's border, which sits inside the box.
 	const width = Math.max(
 		textWidth(name, TABLE.title, true) + 2 * TABLE.pad,
@@ -329,6 +398,7 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 	const sizes = new Map<string, Size>();
 	const cards = new Map<string, { cols: TableColumn[]; fields: ModelField[] }>();
 	const holders = holdersOf(model);
+	const rels = relationsOf(model);
 	const parts = partOf(model, holders);
 	const rootOf = (id: string): string => (parts.has(id) ? rootOf(parts.get(id)!) : id);
 	const hasParts = new Set([...parts.keys()].map(rootOf));
@@ -380,8 +450,14 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 		} else if (info && item.view) {
 			const owner = item.ref ? model.elements.get(info.parentId ?? '')?.name : undefined;
 			const fields = viewFields(model, holders, info.id, item.view);
-			const t = tableLayout(info.name, info.def, fields, item.view, owner, (id) =>
-				refLabel(model, id)
+			const t = tableLayout(
+				info.name,
+				info.def,
+				fields,
+				item.view,
+				owner,
+				(id) => refLabel(model, id),
+				rels
 			);
 			cards.set(item.id, { cols: t.cols, fields });
 			size = t.size;
@@ -448,49 +524,125 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 }
 
 /**
- * A line from a field's row to another table: a foreign key (`ref`, arrow at the target) or
- * a held model (`model`, diamond at the holder, UML composition).
+ * A line from a field's row to another table: a foreign key (`ref`, arrow at the target), a
+ * held model (`model`, diamond at the holder, UML composition) or lineage (`from`, dashed,
+ * arrow at the derived field).
  */
 export interface ModelLink {
 	id: string;
-	kind: 'ref' | 'model';
+	kind: FieldLink['kind'];
 	source: string;
 	target: string;
 	/** `out:<field id>:l` or `:r`. */
 	sourceHandle: string;
-	/** `head:l` or `head:r` for a ref to a model; `in:<field id>:l` or `:r` for a field. */
+	/** `head:l` or `head:r` for a model, or a field its card does not show; else `in:<field id>:l` or `:r`. */
 	targetHandle: string;
+	/** The field the link is written on. */
+	sourceField: string;
+	/** The field pointed at, when its card shows it. */
+	targetField?: string;
 	parentId?: string;
 }
 
+const modelOf = (model: Model, id: string) => model.fields.get(id)?.modelId ?? id;
+const shows = (b: LandscapeBox, fieldId: string) => b.fields?.some((f) => f.id === fieldId);
+
 /**
- * Lines for field refs and held models whose target card sits in the same box, so they
- * never cross a boundary; others show only as text in the row. The ends face each other, and
- * cards stacked in one column (or a card referring to itself) are joined round the right side.
+ * The card a link from box `from` ends on, for the model or field `to`: a sibling if there
+ * is one; else, of the cards showing the field, the nearest.
+ */
+export function linkTarget(
+	model: Model,
+	boxes: LandscapeBox[],
+	from: LandscapeBox,
+	to: string
+): LandscapeBox | undefined {
+	const el = modelOf(model, to);
+	const cards = boxes.filter((o) => o.view && o.elementId === el);
+	const dist = (o: LandscapeBox) =>
+		Math.hypot(
+			o.absX + o.width / 2 - (from.absX + from.width / 2),
+			o.absY + o.height / 2 - (from.absY + from.height / 2)
+		);
+	const score = (o: LandscapeBox) =>
+		(o.parentId === from.parentId ? 0 : 2e9) +
+		(model.fields.has(to) && !shows(o, to) ? 1e9 : 0) +
+		dist(o);
+	return cards.sort((a, b) => score(a) - score(b))[0];
+}
+
+/** A line from field `link.field` in card `b` to card `t`, the ends facing each other. */
+function line(model: Model, b: LandscapeBox, t: LandscapeBox, link: FieldLink): ModelLink {
+	const [from, side] = t.absX >= b.absX + b.width ? 'rl' : t.absX + t.width <= b.absX ? 'lr' : 'rr';
+	const shown = model.fields.has(link.to) && shows(t, link.to);
+	return {
+		id: `${b.id}.${link.field}` + (link.kind === 'from' ? `.${link.to}` : ''),
+		kind: link.kind,
+		source: b.id,
+		target: t.id,
+		sourceHandle: `out:${link.field}:${from}`,
+		targetHandle: shown ? `in:${link.to}:${side}` : `head:${side}`,
+		sourceField: link.field,
+		targetField: shown ? link.to : undefined,
+		parentId: b.parentId
+	};
+}
+
+/** A field's links, in field order: `ref` or `model`, then each `from`. */
+const fieldLinks = (f: ModelField): FieldLink[] => [
+	...(f.ref || f.model
+		? [
+				{
+					kind: f.ref ? ('ref' as const) : ('model' as const),
+					field: f.id,
+					to: (f.ref ?? f.model)!
+				}
+			]
+		: []),
+	...(f.from ?? []).map((to) => ({ kind: 'from' as const, field: f.id, to }))
+];
+
+/**
+ * Lines for links whose target card sits in the same box, so they never cross a boundary;
+ * others show on hover (see `focusLinks`). Cards stacked in one column (or a card referring to
+ * itself) are joined round the right side. Lineage inside one card is not drawn.
  */
 export function modelLinks(model: Model, boxes: LandscapeBox[]): ModelLink[] {
 	const out: ModelLink[] = [];
-	for (const b of boxes) {
-		for (const f of b.fields ?? []) {
-			const to = f.ref ?? f.model;
-			if (!to) continue;
-			const field = model.fields.get(to);
-			const el = field?.modelId ?? to;
-			const t = boxes.find((o) => o.view && o.parentId === b.parentId && o.elementId === el);
-			if (!t) continue;
-			const shown = field && t.fields?.some((tf) => tf.id === field.def.id);
-			const [from, side] =
-				t.absX >= b.absX + b.width ? 'rl' : t.absX + t.width <= b.absX ? 'lr' : 'rr';
-			out.push({
-				id: `${b.id}.${f.id}`,
-				kind: f.ref ? 'ref' : 'model',
-				source: b.id,
-				target: t.id,
-				sourceHandle: `out:${f.id}:${from}`,
-				targetHandle: shown ? `in:${field.def.id}:${side}` : `head:${side}`,
-				parentId: b.parentId
-			});
-		}
+	for (const b of boxes)
+		for (const f of b.fields ?? [])
+			for (const link of fieldLinks(f)) {
+				const el = modelOf(model, link.to);
+				const t = boxes.find((o) => o.view && o.parentId === b.parentId && o.elementId === el);
+				if (!t || (link.kind === 'from' && t === b)) continue;
+				out.push(line(model, b, t, link));
+			}
+	return out;
+}
+
+/**
+ * Every line for one field in one card, wherever the other end is: its own links, and the
+ * fields linking to it. The other end is the nearest card showing it (see `linkTarget`).
+ * Lineage inside one card is left out.
+ */
+export function focusLinks(
+	model: Model,
+	rels: Relations,
+	boxes: LandscapeBox[],
+	boxId: string,
+	fieldId: string
+): ModelLink[] {
+	const b = boxes.find((o) => o.id === boxId);
+	if (!b) return [];
+	const out: ModelLink[] = [];
+	for (const link of rels.out.get(fieldId) ?? []) {
+		const t = linkTarget(model, boxes, b, link.to);
+		if (t && !(link.kind === 'from' && t === b)) out.push(line(model, b, t, link));
+	}
+	for (const link of rels.in.get(fieldId) ?? []) {
+		const s = linkTarget(model, boxes, b, link.field);
+		if (s && shows(s, link.field) && !(link.kind === 'from' && s === b))
+			out.push(line(model, s, b, link));
 	}
 	return out;
 }

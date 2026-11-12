@@ -25,7 +25,13 @@ const light = {
 	'model-stroke': '#d9d5cc',
 	'model-text': '#1d1d1b',
 	'model-key-fill': '#f4ead0',
-	'model-key-text': '#73561a'
+	'model-key-text': '#73561a',
+	'row-hover': 'rgba(84, 104, 212, 0.06)',
+	'row-peer': 'rgba(84, 104, 212, 0.13)',
+	'row-self': 'rgba(84, 104, 212, 0.2)',
+	'row-flash': 'rgba(84, 104, 212, 0.45)',
+	'link-ref': '#5468d4',
+	'link-from': '#2f8a6b'
 };
 
 export type Token = keyof typeof light;
@@ -53,7 +59,13 @@ const dark: Record<Token, string> = {
 	'model-stroke': '#36373d',
 	'model-text': '#e9e7e3',
 	'model-key-fill': '#3a3120',
-	'model-key-text': '#e3c47c'
+	'model-key-text': '#e3c47c',
+	'row-hover': 'rgba(123, 140, 240, 0.08)',
+	'row-peer': 'rgba(123, 140, 240, 0.16)',
+	'row-self': 'rgba(123, 140, 240, 0.26)',
+	'row-flash': 'rgba(123, 140, 240, 0.5)',
+	'link-ref': '#8e9cf3',
+	'link-from': '#5cc29d'
 };
 
 export const TOKENS = Object.keys(light) as Token[];

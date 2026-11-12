@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { LEAF, layoutLandscape, modelLinks } from '../../src/lib/landscape/layout';
+import {
+	focusLinks,
+	LEAF,
+	layoutLandscape,
+	modelLinks,
+	relationsOf
+} from '../../src/lib/landscape/layout';
 import { textWidth } from '../../src/lib/render/text';
 import { loadFixture, loadStrings } from './helpers';
 
@@ -188,5 +194,62 @@ describe('landscape layout', () => {
 			['d.d-a', 'ref', 'a', 'out:d-a:r', 'head:r'],
 			['d.d-c', 'model', 'c', 'out:d-c:r', 'head:r']
 		]);
+	});
+
+	const lineage = loadStrings({
+		's/s.system.yaml': 'id: s\n',
+		's/db.module.yaml': 'id: db\nparent: s\n',
+		's/api.module.yaml': 'id: api\nparent: s\n',
+		's/src.model.yaml':
+			'id: src\nownedBy: db\nstoredIn: db\nfields: [{ id: src-id, name: id, type: uuid, pk: true }, { id: src-n, name: n, type: int }]\n',
+		's/copy.model.yaml': [
+			'id: copy',
+			'ownedBy: db',
+			'storedIn: db',
+			'fields:',
+			'  - { id: copy-id, name: id, type: uuid, ref: src-id }',
+			'  - { id: copy-n, name: n, type: int, from: [src-n] }',
+			'  - { id: copy-twice, name: twice, type: int, from: [copy-n], derived: n * 2 }'
+		].join('\n'),
+		's/dto.model.yaml':
+			'id: dto\nownedBy: api\nfields: [{ id: dto-n, name: n, type: int, from: [src-n] }]\n'
+	}).model;
+
+	it('replaces the reference and source columns with a link strip', () => {
+		const boxes = layoutLandscape(lineage);
+		const cols = (id: string) => boxes.find((b) => b.id === id)!.table!;
+		expect(cols('copy').map((c) => c.key)).toEqual([
+			'name',
+			'type',
+			'required',
+			'nullable',
+			'links'
+		]);
+		expect(cols('copy').at(-1)!.slots).toEqual(['ref', 'from', 'inFrom']);
+		expect(cols('src').at(-1)!.slots).toEqual(['inRef', 'inFrom']);
+	});
+
+	it('indexes field links both ways', () => {
+		const rels = relationsOf(lineage);
+		expect(rels.out.get('copy-n')).toEqual([{ kind: 'from', field: 'copy-n', to: 'src-n' }]);
+		expect(rels.in.get('src-n')!.map((l) => l.field)).toEqual(['copy-n', 'dto-n']);
+	});
+
+	it('draws lineage between sibling cards, but not inside one card', () => {
+		const links = modelLinks(lineage, layoutLandscape(lineage));
+		expect(links.map((l) => [l.id, l.kind, l.target])).toEqual([
+			['copy.copy-id', 'ref', 'src'],
+			['copy.copy-n.src-n', 'from', 'src']
+		]);
+	});
+
+	it('draws the links of a focused field across boxes, both ways', () => {
+		const boxes = layoutLandscape(lineage);
+		const links = focusLinks(lineage, relationsOf(lineage), boxes, 'src', 'src-n');
+		expect(links.map((l) => [l.source, l.sourceField, l.target, l.targetField])).toEqual([
+			['copy', 'copy-n', 'src', 'src-n'],
+			['dto', 'dto-n', 'src', 'src-n']
+		]);
+		expect(links[1].parentId).toBe('api');
 	});
 });

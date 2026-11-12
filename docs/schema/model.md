@@ -90,6 +90,10 @@ impact can be traced.
 
 - Class cards have a tinted name bar and the subtitle *Model*; stored cards say *Stored*. A
   card drawn away from its owner adds *owned by …*; a referenced class (`models`) is dashed.
-- `ref` to a sibling card: arrow line. `model` to a sibling card: line with a diamond at
-  the holder. Targets elsewhere show as text.
-- Type column shows `Customer` / `OrderLine[]`; Source column shows `from` + `derived`.
+- Type column shows `Customer` / `OrderLine[]`. A link strip at the row end marks `ref` (→),
+  `from` (dashed ←, `ƒ` when `derived`) and how many fields point at the field (count pill).
+- Lines between sibling cards: `ref` arrow at the target; `model` diamond at the holder;
+  `from` dashed, arrow at the derived field.
+- Hover a row: its links light up, drawn to the nearest card showing the other end, even in
+  another module or system. Click: pins them and opens an inspector (references, source,
+  referenced by, feeds); click an entry to fly there. Esc closes.

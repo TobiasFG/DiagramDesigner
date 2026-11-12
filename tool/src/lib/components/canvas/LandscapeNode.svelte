@@ -1,12 +1,12 @@
 <script lang="ts" module>
 	import type { ModelField, ModelIndex } from '#lib/model/schema.ts';
 	import type { ModelView, TableColumn } from '#lib/landscape/layout.ts';
+	import type { ViewState } from '#lib/client/view-state.svelte.ts';
 
 	export interface LandscapeNodeData extends Record<string, unknown> {
 		name: string;
 		kind: string;
 		group: boolean;
-		selected: boolean;
 		/** Owner's name when the model is owned elsewhere. */
 		owner?: string;
 		/** The fields that exist in this view. */
@@ -17,6 +17,11 @@
 		view?: ModelView;
 		/** Names of the models and fields the fields point at (ref, model, from), by id. */
 		labels?: Record<string, string>;
+		/** How many fields refer to and derive from each field, by field id. */
+		incoming?: Record<string, { ref: number; from: number }>;
+		/** Selection, focus and flash; read here so they never rebuild the nodes. */
+		state: ViewState;
+		onfield?: (field: string, ev: 'enter' | 'leave' | 'click') => void;
 	}
 </script>
 
@@ -24,23 +29,29 @@
 	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
 	import {
 		fieldRowY,
-		fromText,
 		indexFields,
 		indexKind,
 		KEY_TITLES,
 		keysOf,
 		LEAF,
+		LINK,
 		subtitle,
 		TABLE,
 		typeText
 	} from '#lib/landscape/layout.ts';
 
-	let { data, width = 0, height = 0 }: NodeProps = $props();
+	let { id, data, width = 0, height = 0 }: NodeProps = $props();
 	const d = $derived(data as LandscapeNodeData);
+	const hot = $derived(d.state.hot[id]);
+	const picked = $derived(d.state.field?.box === id ? d.state.field.field : undefined);
+	const flash = $derived(d.state.flash?.box === id ? d.state.flash.field : undefined);
+	const plural = (n: number, one: string, many: string) =>
+		`${n} field${n > 1 ? 's' : ''} ${n > 1 ? many : one}`;
 	// A closed group's name scales with the box, so a system reads the same at any size. A
 	// leaf is fitted round its name, so the name keeps one size.
 	const font = $derived(d.group ? Math.min(width * 0.085, height * 0.2) : LEAF.font);
 	const label = (id: string) => d.labels?.[id];
+	const names = (ids: string[]) => ids.map((id) => label(id) ?? id).join(', ');
 	// The last column takes any width the card has to spare.
 	const template = (cols: TableColumn[]) =>
 		cols
@@ -53,7 +64,8 @@
 <div
 	class="node"
 	class:group={d.group}
-	class:selected={d.selected}
+	class:selected={d.state.selectedNodes.includes(id)}
+	class:peer-box={d.state.peerBoxes[id]}
 	style:--fill="var(--sdv-{d.kind}-fill, var(--sdv-container-fill))"
 	style:--stroke="var(--sdv-{d.kind}-stroke, var(--sdv-container-stroke))"
 	style:--text="var(--sdv-{d.kind}-text, var(--sdv-container-text))"
@@ -95,30 +107,83 @@
 						</div>
 					{/each}
 					{#each d.fields as f (f.id)}
-						{#each cols as c, ci (c.key)}
-							<div
-								class="cell"
-								class:first={ci === 0}
-								class:muted={c.key === 'type' || c.key === 'from'}
-								class:mark={c.key === 'required' || c.key === 'nullable'}
-							>
-								{#if c.key === 'name'}{f.name}{#each d.view === 'table' ? keysOf(f) : [] as k (k)}<span
-											class="badge"
-											style:font-size="{TABLE.badge}px"
-											title={KEY_TITLES[k]}>{k}</span
-										>{/each}
-								{:else if c.key === 'type'}{typeText(f, label)}
-								{:else if c.key === 'required'}{f.required ? TABLE.check : ''}
-								{:else if c.key === 'nullable'}{f.nullable ? TABLE.check : ''}
-								{:else if c.key === 'constraints'}
-									{#each f.constraints ?? [] as k (k)}<span
-											class="badge plain"
-											style:font-size="{TABLE.badge}px">{k}</span
-										>{/each}
-								{:else if c.key === 'from'}{fromText(f, label)}
-								{:else}{f.ref ? (label(f.ref) ?? '') : ''}{/if}
-							</div>
-						{/each}
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<div
+							class="row"
+							class:hot={hot?.[f.id] === 'peer'}
+							class:self={hot?.[f.id] === 'self'}
+							class:picked={picked === f.id}
+							class:flash={flash === f.id}
+							role="button"
+							tabindex="-1"
+							onmouseenter={() => d.onfield?.(f.id, 'enter')}
+							onmouseleave={() => d.onfield?.(f.id, 'leave')}
+							onclick={(e) => {
+								e.stopPropagation();
+								d.onfield?.(f.id, 'click');
+							}}
+						>
+							{#each cols as c, ci (c.key)}
+								<div
+									class="cell"
+									class:first={ci === 0}
+									class:muted={c.key === 'type'}
+									class:mark={c.key === 'required' || c.key === 'nullable'}
+									class:links={c.key === 'links'}
+								>
+									{#if c.key === 'name'}{f.name}{#each d.view === 'table' ? keysOf(f) : [] as k (k)}<span
+												class="badge"
+												style:font-size="{TABLE.badge}px"
+												title={KEY_TITLES[k]}>{k}</span
+											>{/each}
+									{:else if c.key === 'type'}{typeText(f, label)}
+									{:else if c.key === 'required'}{f.required ? TABLE.check : ''}
+									{:else if c.key === 'nullable'}{f.nullable ? TABLE.check : ''}
+									{:else if c.key === 'constraints'}
+										{#each f.constraints ?? [] as k (k)}<span
+												class="badge plain"
+												style:font-size="{TABLE.badge}px">{k}</span
+											>{/each}
+									{:else}
+										{#each c.slots ?? [] as s (s)}
+											{@const n =
+												s === 'inRef'
+													? (d.incoming?.[f.id]?.ref ?? 0)
+													: (d.incoming?.[f.id]?.from ?? 0)}
+											<span
+												class="slot {s}"
+												style:min-width="{LINK.slot}px"
+												style:font-size="{LINK.count}px"
+												title={s === 'ref' && f.ref
+													? `References ${names([f.ref])}`
+													: s === 'from' && f.from?.length
+														? `From ${names(f.from)}${f.derived ? ` · ${f.derived}` : ''}`
+														: s === 'inRef' && n
+															? plural(n, 'refers here', 'refer here')
+															: s === 'inFrom' && n
+																? plural(n, 'derives from this', 'derive from this')
+																: undefined}
+											>
+												{#if s === 'ref' && f.ref}
+													<svg width={LINK.icon} height={LINK.icon} viewBox="0 0 14 14">
+														<path d="M1 7h8" /><path class="fill" d="M8 3.5 13 7 8 10.5Z" />
+													</svg>
+												{:else if s === 'from' && f.from?.length}
+													<svg width={LINK.icon} height={LINK.icon} viewBox="0 0 14 14">
+														<path d="M13 7H5" stroke-dasharray="2 1.6" /><path
+															class="fill"
+															d="M6 3.5 1 7l5 3.5Z"
+														/>
+													</svg>{#if f.derived}<i>ƒ</i>{/if}
+												{:else if (s === 'inRef' || s === 'inFrom') && n}
+													<span class="count">{n}</span>
+												{/if}
+											</span>
+										{/each}
+									{/if}
+								</div>
+							{/each}
+						</div>
 					{/each}
 				</div>
 			{/if}
@@ -135,11 +200,11 @@
 				</div>
 			{/if}
 		</div>
-		<!-- Invisible line ends: one each side of the header, and of every row with a ref or model. -->
+		<!-- Invisible line ends: one each side of the header, and of every row with a link. -->
 		<Handle type="target" id="head:l" position={Position.Left} style="top:{TABLE.head / 2}px" />
 		<Handle type="target" id="head:r" position={Position.Right} style="top:{TABLE.head / 2}px" />
 		{#each d.fields ?? [] as f, i (f.id)}
-			{#if f.ref || f.model}
+			{#if f.ref || f.model || f.from?.length}
 				<Handle
 					type="source"
 					id="out:{f.id}:l"
@@ -193,6 +258,10 @@
 		border: 1.5px dashed var(--sdv-boundary-stroke);
 		background: var(--sdv-boundary-fill);
 	}
+	.node.peer-box {
+		outline: 2px solid var(--sdv-link-ref);
+		outline-offset: 3px;
+	}
 	.node.selected {
 		outline: 2px solid var(--sdv-selection);
 		outline-offset: 2px;
@@ -230,6 +299,10 @@
 		border-color: var(--sdv-model-stroke);
 		color: var(--sdv-model-text);
 	}
+	/* Rows take the pointer, unless the node is a ghost (closed parent). */
+	.face.table {
+		pointer-events: inherit;
+	}
 	.face.table.ref {
 		border-style: dashed;
 	}
@@ -252,6 +325,83 @@
 	.grid {
 		display: grid;
 		grid-auto-rows: var(--row);
+	}
+	/* A field row: one subgrid line, so it can be hovered, lit and clicked as a whole. */
+	.row {
+		display: grid;
+		grid-column: 1 / -1;
+		grid-template-columns: subgrid;
+		outline: none;
+	}
+	.row:hover {
+		background: var(--sdv-row-hover);
+	}
+	.row.hot {
+		background: var(--sdv-row-peer);
+	}
+	.row.self,
+	.row.picked {
+		background: var(--sdv-row-self);
+		box-shadow: inset 3px 0 0 var(--sdv-selection);
+	}
+	.row.flash {
+		animation: flash 1.4s ease-out;
+	}
+	@keyframes flash {
+		0%,
+		35% {
+			background: var(--sdv-row-flash);
+		}
+	}
+	.cell.links {
+		gap: 0;
+		padding-left: 4px;
+		padding-right: 6px;
+	}
+	.slot {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 1px;
+		height: 100%;
+		color: var(--sdv-text-muted);
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+	}
+	.slot.ref {
+		color: var(--sdv-link-ref);
+	}
+	.slot.from {
+		color: var(--sdv-link-from);
+	}
+	/* Incoming links: a count in a pill, like a badge, so it reads as "used by n". */
+	.slot .count {
+		min-width: 8px;
+		padding: 0 4px;
+		line-height: 15px;
+		border-radius: 8px;
+		text-align: center;
+		color: var(--sdv-model-fill);
+	}
+	.slot.inRef .count {
+		background: var(--sdv-link-ref);
+	}
+	.slot.inFrom .count {
+		background: var(--sdv-link-from);
+	}
+	.slot i {
+		font-family: Georgia, serif;
+		font-size: 11px;
+		margin-left: -1px;
+	}
+	.slot svg {
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.5;
+	}
+	.slot svg .fill {
+		fill: currentColor;
+		stroke: none;
 	}
 	.list {
 		display: grid;
