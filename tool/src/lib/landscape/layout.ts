@@ -1,4 +1,4 @@
-import type { Model } from '../model/model';
+import type { ElementInfo, Model } from '../model/model';
 import type { Element, ModelField, ModelIndex } from '../model/schema';
 import { textWidth } from '../render/text';
 
@@ -33,6 +33,8 @@ export interface LandscapeBox {
 	view?: ModelView;
 	/** The model's fields that exist in this view. */
 	fields?: ModelField[];
+	/** Apis of the element, drawn as ports on the border (see `apiHosts`). */
+	apis?: string[];
 }
 
 interface Size {
@@ -52,6 +54,18 @@ interface Item {
 
 /** A box without children: its name at a fixed size, the box fitted round it. */
 export const LEAF = { font: 15, padX: 18, height: 52, minWidth: 100 };
+/** A closed group's name scales with the box, so a system reads the same at any size. */
+export const groupFont = (width: number, height: number) => Math.min(width * 0.085, height * 0.2);
+/**
+ * An api is a port on its parent's border: a chip straddling the top edge, right-aligned. On a
+ * leaf the chip has this fixed font size, so the leaf is made wide enough for its chips.
+ */
+export const PORT = { font: 10, gap: 4, margin: 8 };
+
+/** Chip width: method in bold, then the path, with 0.5em side padding and a 0.4em gap. */
+export const portWidth = (method: string, path: string, font: number) =>
+	textWidth(method, font, true) + textWidth(path, font) + 1.4 * font + 2;
+
 const GAP = 32;
 const SYSTEM_GAP = 120;
 const PAD = 32;
@@ -342,8 +356,15 @@ function tableLayout(
 	return { size: { width: Math.ceil(width) + 2, height: height + 2 }, cols };
 }
 
-const leafSize = (name: string): Size => ({
-	width: Math.max(LEAF.minWidth, textWidth(name, LEAF.font, true) + 2 * LEAF.padX),
+const leafSize = (name: string, apis: ElementInfo[]): Size => ({
+	width: Math.max(
+		LEAF.minWidth,
+		textWidth(name, LEAF.font, true) + 2 * LEAF.padX,
+		apis.reduce(
+			(w, a) => w + portWidth(a.def.method ?? '', a.def.path ?? '', PORT.font) + PORT.gap,
+			2 * PORT.margin - PORT.gap
+		)
+	),
 	height: LEAF.height
 });
 
@@ -420,7 +441,7 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 				.childIds.filter((id) => id === item.el || (parts.has(id) && rootOf(id) === item.el))
 				.map(card);
 		return [
-			...info.childIds.filter((id) => !parts.has(id)).map(owned),
+			...info.childIds.filter((id) => !parts.has(id) && !isApi(id)).map(owned),
 			...info.refIds.map((id) => ({
 				id: `${item.id}>${id}`,
 				el: id,
@@ -435,6 +456,11 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 			}))
 		];
 	};
+	const isApi = (id: string) => model.elements.get(id)!.def.kind === 'api';
+	const apisOf = (item: Item) =>
+		item.ref || item.view || item.boundary
+			? []
+			: (model.elements.get(item.el)?.childIds.filter(isApi) ?? []);
 	const colsFor = (n: number) => Math.ceil(Math.sqrt(n));
 	const arrange = (items: Item[], cols: number, gap: number) =>
 		masonry(items.map(measure), cols, gap);
@@ -461,7 +487,11 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 			);
 			cards.set(item.id, { cols: t.cols, fields });
 			size = t.size;
-		} else size = leafSize(info?.name ?? item.el);
+		} else
+			size = leafSize(
+				info?.name ?? item.el,
+				apisOf(item).map((id) => model.elements.get(id)!)
+			);
 		sizes.set(item.id, size);
 		return size;
 	}
@@ -496,7 +526,8 @@ export function layoutLandscape(model: Model): LandscapeBox[] {
 				height: slot.height,
 				table: cards.get(item.id)?.cols,
 				view: item.view,
-				fields: cards.get(item.id)?.fields
+				fields: cards.get(item.id)?.fields,
+				apis: apisOf(item)
 			};
 			out.push(box);
 			if (kids.length)

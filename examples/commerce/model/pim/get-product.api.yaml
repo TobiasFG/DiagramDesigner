@@ -1,0 +1,12 @@
+id: giu9ae1x1o
+parent: uyvk2xm74q
+name: Get product content
+method: GET
+path: /products/{sku}
+auth: api key
+params:
+  - { name: sku, in: path, type: string }
+  - { name: locale, in: query, type: string, required: true, description: e.g. da-DK }
+responses:
+  - { status: 200, model: ck9foqxxus }
+  - { status: 404, description: No content for this sku and locale }

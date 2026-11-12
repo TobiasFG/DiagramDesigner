@@ -10,8 +10,6 @@ Open goals only. **Remove a goal once it is achieved**; keep this list lean.
 
 ## APIs
 
-- APIs own or list their request/response models (today models can only be owned by a system
-  or module).
 - API models use `from` for every field, so impact flows from database to API consumers.
 
 ## Authoring

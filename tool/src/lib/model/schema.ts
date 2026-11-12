@@ -31,6 +31,12 @@ export interface Element {
 	meta?: Record<string, string>;
 	fields?: ModelField[];
 	indexes?: ModelIndex[];
+	method?: HttpMethod;
+	path?: string;
+	auth?: string;
+	params?: ApiParam[];
+	request?: ApiBody;
+	responses?: ApiResponse[];
 }
 
 /** Kinds an entity file can have; the file name `<name>.<kind>.yaml` gives it. */
@@ -95,6 +101,40 @@ export const ModelIndex = z
 	.describe('Secondary index over model fields');
 export type ModelIndex = z.infer<typeof ModelIndex>;
 
+export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const;
+export type HttpMethod = (typeof HTTP_METHODS)[number];
+
+export const ApiParam = z
+	.strictObject({
+		name: z.string(),
+		in: z.enum(['path', 'query', 'header']),
+		type: z.string(),
+		required: z.boolean().optional().describe('Path params are always required'),
+		description: Text.optional()
+	})
+	.describe('Endpoint parameter, outside the body');
+export type ApiParam = z.infer<typeof ApiParam>;
+
+export const ApiBody = z
+	.strictObject({
+		model: Id.describe('Id of the model sent or returned'),
+		many: z.boolean().optional().describe('A list of the model'),
+		contentType: z.string().optional().describe('Default application/json')
+	})
+	.describe('Request body');
+export type ApiBody = z.infer<typeof ApiBody>;
+
+export const ApiResponse = z
+	.strictObject({
+		status: z.number().int().min(100).max(599),
+		model: Id.optional().describe('Id of the model returned; omit for no body'),
+		many: z.boolean().optional().describe('A list of the model'),
+		contentType: z.string().optional().describe('Default application/json'),
+		description: Text.optional()
+	})
+	.describe('One possible response');
+export type ApiResponse = z.infer<typeof ApiResponse>;
+
 /**
  * One entity per file, named `<name>.<kind>.yaml`. The id is generated once and never
  * edited, so renaming or moving the file changes nothing. Systems sit in their own folder
@@ -115,6 +155,12 @@ export const EntityFile = z
 			.describe('Ids of models used here but owned elsewhere; drawn inside as references'),
 		fields: z.array(ModelField).optional().describe('Models only'),
 		indexes: z.array(ModelIndex).optional().describe('Models only'),
+		method: z.enum(HTTP_METHODS).optional().describe('Apis only: HTTP method; required'),
+		path: z.string().optional().describe('Apis only: route, e.g. /orders/{id}; required'),
+		auth: z.string().optional().describe('Apis only: how callers authenticate, e.g. bearer'),
+		params: z.array(ApiParam).optional().describe('Apis only: path, query and header params'),
+		request: ApiBody.optional().describe('Apis only: what it takes in the body'),
+		responses: z.array(ApiResponse).optional().describe('Apis only: what it returns, by status'),
 		name: Text.optional().describe('Display name; defaults to the file name'),
 		tags: z.array(z.string()).optional(),
 		links: z.array(DocLink).optional(),

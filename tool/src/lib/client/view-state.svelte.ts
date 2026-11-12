@@ -14,6 +14,8 @@ export class ViewState {
 	hover = $state.raw<FieldRef | null>(null);
 	/** The field row clicked; its links stay drawn and the inspector shows them. */
 	field = $state.raw<FieldRef | null>(null);
+	/** The api port clicked; the inspector shows it. */
+	api = $state.raw<string | null>(null);
 	/** Rows followed to from the inspector, for Back. */
 	trail = $state.raw<FieldRef[]>([]);
 	/** A row flashed after flying to it. */

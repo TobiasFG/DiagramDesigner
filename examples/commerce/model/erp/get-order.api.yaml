@@ -1,0 +1,11 @@
+id: poeshtumor
+parent: d8mg4xc8ef
+name: Get order
+method: GET
+path: /orders/{orderNo}
+auth: bearer
+params:
+  - { name: orderNo, in: path, type: string }
+responses:
+  - { status: 200, model: llns90zy3d }
+  - { status: 404, description: No such order }

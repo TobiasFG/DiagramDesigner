@@ -1,3 +1,7 @@
 id: order-api
 parent: erp
 name: Order API
+method: GET
+path: /orders/{id}
+params:
+  - { name: id, in: path, type: uuid }

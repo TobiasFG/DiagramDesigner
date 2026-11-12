@@ -1,0 +1,11 @@
+id: fdqktz9kjr
+parent: up28wl6i9p
+name: Get stock
+method: GET
+path: /stock/{productId}
+auth: bearer
+params:
+  - { name: productId, in: path, type: uuid }
+  - { name: warehouse, in: query, type: string }
+responses:
+  - { status: 200, model: z507p6fu7v, many: true }

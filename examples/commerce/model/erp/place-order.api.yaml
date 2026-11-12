@@ -1,0 +1,10 @@
+id: a2uivekzaq
+parent: d8mg4xc8ef
+name: Place order
+method: POST
+path: /orders
+auth: bearer
+request: { model: llns90zy3d }
+responses:
+  - { status: 201, model: llns90zy3d, description: Created }
+  - { status: 400, description: Invalid order }

@@ -289,6 +289,40 @@ describe('entity checks', () => {
 		expect(codes(diagnostics)).toEqual(['dangling-ref', 'lineage-cycle', 'lineage-cycle']);
 	});
 
+	it('checks apis: route, path params, responses and body models', () => {
+		const { diagnostics } = loadStrings({
+			's/s.system.yaml': 'id: s\nmethod: GET\n',
+			's/m.model.yaml': 'id: m\nownedBy: s\n',
+			's/ok.api.yaml': [
+				'id: ok',
+				'parent: s',
+				'method: PUT',
+				'path: /m/{id}',
+				'params: [{ name: id, in: path, type: uuid }, { name: q, in: query, type: string }]',
+				'request: { model: m }',
+				'responses: [{ status: 200, model: m, many: true }, { status: 404 }]'
+			].join('\n'),
+			's/bad.api.yaml': [
+				'id: bad',
+				'parent: s',
+				'path: m/{id}',
+				'params: [{ name: x, in: path, type: string }]',
+				'request: { model: s }',
+				'responses: [{ status: 200, model: ghost }, { status: 200 }]'
+			].join('\n')
+		});
+		expect(codes(diagnostics)).toEqual([
+			'api-only',
+			'api-param',
+			'api-param',
+			'api-path',
+			'api-response',
+			'dangling-ref',
+			'missing-route',
+			'not-a-model'
+		]);
+	});
+
 	it('gives each system its own folder', () => {
 		const { diagnostics } = loadStrings({
 			'a/a.system.yaml': 'id: a\n',

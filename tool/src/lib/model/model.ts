@@ -223,6 +223,42 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 			for (const key of ['fields', 'indexes'] as const)
 				if (value[key]) diag('error', 'model-only', `only models have ${key}`, loc, key);
 		}
+		if (kind === 'api') {
+			for (const key of ['method', 'path'] as const)
+				if (!value[key])
+					diag('error', 'missing-route', `api "${info.name}" needs ${key}`, loc, 'id');
+			const inPath = [...(value.path ?? '').matchAll(/\{([^}]+)\}/g)].map((m) => m[1]);
+			if (value.path && !value.path.startsWith('/'))
+				diag('error', 'api-path', `path must start with /`, loc, 'path');
+			for (const name of inPath)
+				if (!value.params?.some((p) => p.in === 'path' && p.name === name))
+					diag('error', 'api-param', `path has {${name}} but no path param "${name}"`, loc, 'path');
+			value.params?.forEach((p, i) => {
+				if (p.in === 'path' && !inPath.includes(p.name))
+					diag(
+						'error',
+						'api-param',
+						`path param "${p.name}" is not in the path`,
+						at(loc, 'params', i),
+						'name'
+					);
+			});
+			const statuses = new Set<number>();
+			value.responses?.forEach((r, i) => {
+				if (statuses.has(r.status))
+					diag(
+						'error',
+						'api-response',
+						`status ${r.status} is listed twice`,
+						at(loc, 'responses', i),
+						'status'
+					);
+				statuses.add(r.status);
+			});
+		} else {
+			for (const key of ['method', 'path', 'auth', 'params', 'request', 'responses'] as const)
+				if (value[key]) diag('error', 'api-only', `only apis have ${key}`, loc, key);
+		}
 	}
 	for (const info of entities) {
 		info.def.fields?.forEach((f, i) => {
@@ -272,6 +308,25 @@ export function buildModel(files: Record<string, unknown>, locate?: Locator): Mo
 			at(model.fields.get(cycle[0])!.loc, 'from')
 		);
 	for (const info of entities) {
+		const bodies = [
+			...(info.def.request ? [{ body: info.def.request, path: ['request'] }] : []),
+			...(info.def.responses ?? []).map((body, i) => ({ body, path: ['responses', i] }))
+		];
+		for (const { body, path } of bodies) {
+			if (!body.model) continue;
+			const target = model.elements.get(body.model);
+			const bodyLoc = at(info.loc, ...path);
+			if (!target)
+				diag('error', 'dangling-ref', `model "${body.model}" is not an entity`, bodyLoc, 'model');
+			else if (target.def.kind !== 'model')
+				diag(
+					'error',
+					'not-a-model',
+					`"${target.name}" is a ${target.def.kind}, not a model`,
+					bodyLoc,
+					'model'
+				);
+		}
 		info.def.fields?.forEach((f, i) => {
 			if (!f.ref) return;
 			if (model.fields.has(f.ref)) return;

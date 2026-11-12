@@ -149,6 +149,128 @@
         "description": "Secondary index over model fields"
       }
     },
+    "method": {
+      "description": "Apis only: HTTP method; required",
+      "type": "string",
+      "enum": [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "HEAD",
+        "OPTIONS"
+      ]
+    },
+    "path": {
+      "description": "Apis only: route, e.g. /orders/{id}; required",
+      "type": "string"
+    },
+    "auth": {
+      "description": "Apis only: how callers authenticate, e.g. bearer",
+      "type": "string"
+    },
+    "params": {
+      "description": "Apis only: path, query and header params",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "in": {
+            "type": "string",
+            "enum": [
+              "path",
+              "query",
+              "header"
+            ]
+          },
+          "type": {
+            "type": "string"
+          },
+          "required": {
+            "description": "Path params are always required",
+            "type": "boolean"
+          },
+          "description": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "in",
+          "type"
+        ],
+        "additionalProperties": false,
+        "description": "Endpoint parameter, outside the body"
+      }
+    },
+    "request": {
+      "description": "Apis only: what it takes in the body",
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Id of the model sent or returned"
+        },
+        "many": {
+          "description": "A list of the model",
+          "type": "boolean"
+        },
+        "contentType": {
+          "description": "Default application/json",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model"
+      ],
+      "additionalProperties": false
+    },
+    "responses": {
+      "description": "Apis only: what it returns, by status",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          },
+          "model": {
+            "description": "Id of the model returned; omit for no body",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "many": {
+            "description": "A list of the model",
+            "type": "boolean"
+          },
+          "contentType": {
+            "description": "Default application/json",
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false,
+        "description": "One possible response"
+      }
+    },
     "name": {
       "description": "Display name; defaults to the file name",
       "type": [

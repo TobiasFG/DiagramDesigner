@@ -22,6 +22,9 @@
 		/** Selection, focus and flash; read here so they never rebuild the nodes. */
 		state: ViewState;
 		onfield?: (field: string, ev: 'enter' | 'leave' | 'click') => void;
+		/** Apis drawn on this box's border: its own, and those of hidden boxes inside it. */
+		apis?: { id: string; name: string; method: string; path: string }[];
+		onapi?: (api: string) => void;
 	}
 </script>
 
@@ -29,12 +32,14 @@
 	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
 	import {
 		fieldRowY,
+		groupFont,
 		indexFields,
 		indexKind,
 		KEY_TITLES,
 		keysOf,
 		LEAF,
 		LINK,
+		PORT,
 		subtitle,
 		TABLE,
 		typeText
@@ -47,12 +52,16 @@
 	const flash = $derived(d.state.flash?.box === id ? d.state.flash.field : undefined);
 	const plural = (n: number, one: string, many: string) =>
 		`${n} field${n > 1 ? 's' : ''} ${n > 1 ? many : one}`;
-	// A closed group's name scales with the box, so a system reads the same at any size. A
-	// leaf is fitted round its name, so the name keeps one size.
-	const font = $derived(d.group ? Math.min(width * 0.085, height * 0.2) : LEAF.font);
+	// A leaf is fitted round its name, so the name keeps one size.
+	const font = $derived(d.group ? groupFont(width, height) : LEAF.font);
 	const label = (id: string) => d.labels?.[id];
 	const names = (ids: string[]) => ids.map((id) => label(id) ?? id).join(', ');
 	// The last column takes any width the card has to spare.
+	const METHOD_TOKEN: Record<string, string> = { PATCH: 'put' };
+	const methodColor = (m: string) =>
+		['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(m)
+			? `var(--sdv-method-${METHOD_TOKEN[m] ?? m.toLowerCase()})`
+			: 'var(--sdv-text-muted)';
 	const template = (cols: TableColumn[]) =>
 		cols
 			.map((c, i) => (i < cols.length - 1 ? `${c.width}px` : `minmax(${c.width}px, 1fr)`))
@@ -234,6 +243,31 @@
 	{:else}
 		<div class="face" style:font-size="{font}px">
 			<div class="name">{d.name}</div>
+		</div>
+	{/if}
+	{#if d.apis?.length}
+		<!-- A group's ports keep one size on screen, like its header, until the box is small. -->
+		<div
+			class="ports"
+			style:font-size={d.group
+				? `min(calc(11px / var(--z)), ${Math.max(8, height * 0.05)}px)`
+				: `${PORT.font}px`}
+			style:gap="{PORT.gap}px"
+			style:padding="0 {PORT.margin}px"
+		>
+			{#each d.apis as a (a.id)}
+				<button
+					class="port"
+					class:picked={d.state.api === a.id}
+					title={a.name}
+					onclick={(e) => {
+						e.stopPropagation();
+						d.onapi?.(a.id);
+					}}
+				>
+					<b style:color={methodColor(a.method)}>{a.method}</b>{a.path}
+				</button>
+			{/each}
 		</div>
 	{/if}
 </div>
@@ -453,6 +487,42 @@
 	.node :global(.svelte-flow__handle) {
 		opacity: 0;
 		pointer-events: none;
+	}
+	/* Ports straddle the top border, right-aligned, wrapping into the box when they run out. */
+	.ports {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: -0.8em;
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		pointer-events: none;
+	}
+	.port {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4em;
+		height: 1.6em;
+		padding: 0 0.5em;
+		border: 1px solid var(--sdv-api-stroke);
+		border-radius: 0.8em;
+		background: var(--sdv-api-fill);
+		color: var(--sdv-api-text);
+		font: inherit;
+		white-space: nowrap;
+		cursor: pointer;
+		pointer-events: auto;
+	}
+	.port b {
+		font-weight: 700;
+	}
+	.port:hover {
+		border-color: var(--sdv-selection);
+	}
+	.port.picked {
+		border-color: var(--sdv-selection);
+		box-shadow: 0 0 0 1px var(--sdv-selection);
 	}
 	.header {
 		position: absolute;

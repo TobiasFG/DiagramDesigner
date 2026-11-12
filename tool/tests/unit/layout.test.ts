@@ -4,6 +4,8 @@ import {
 	LEAF,
 	layoutLandscape,
 	modelLinks,
+	PORT,
+	portWidth,
 	relationsOf
 } from '../../src/lib/landscape/layout';
 import { textWidth } from '../../src/lib/render/text';
@@ -26,8 +28,10 @@ describe('landscape layout', () => {
 	const boxes = layoutLandscape(model);
 	const box = (id: string) => boxes.find((b) => b.id === id)!;
 
-	it('lays out every entity, parents before their children', () => {
-		expect(boxes.map((b) => b.id).sort()).toEqual([...model.elements.keys()].sort());
+	const notApi = (id: string) => model.elements.get(id)!.def.kind !== 'api';
+
+	it('lays out every entity but apis, parents before their children', () => {
+		expect(boxes.map((b) => b.id).sort()).toEqual([...model.elements.keys()].filter(notApi).sort());
 		const index = new Map(boxes.map((b, i) => [b.id, i]));
 		for (const b of boxes)
 			if (b.parentId) expect(index.get(b.parentId)!).toBeLessThan(index.get(b.id)!);
@@ -53,9 +57,26 @@ describe('landscape layout', () => {
 				Math.max(LEAF.minWidth, textWidth(model.elements.get(b.id)!.name, LEAF.font, true) + 36)
 			);
 		const sizes = new Set(
-			model.elements.get('erp')!.childIds.map((id) => `${box(id).width}x${box(id).height}`)
+			model.elements
+				.get('erp')!
+				.childIds.filter(notApi)
+				.map((id) => `${box(id).width}x${box(id).height}`)
 		);
 		expect(sizes.size).toBeGreaterThan(1);
+	});
+
+	it('puts apis on their parent box and widens a leaf to fit its ports', () => {
+		expect(box('erp').apis).toEqual(['order-api']);
+		const { model } = loadStrings({
+			's/s.system.yaml': 'id: s\n',
+			's/m.module.yaml': 'id: m\nparent: s\nname: M\n',
+			's/a.api.yaml': 'id: a\nparent: m\nmethod: DELETE\npath: /a/very/long/route/to/something\n'
+		});
+		const m = layoutLandscape(model).find((b) => b.id === 'm')!;
+		expect([m.group, m.apis]).toEqual([false, ['a']]);
+		expect(m.width).toBe(
+			portWidth('DELETE', '/a/very/long/route/to/something', PORT.font) + 2 * PORT.margin
+		);
 	});
 
 	it('is empty for an empty model', () => {

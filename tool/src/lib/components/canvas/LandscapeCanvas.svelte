@@ -28,13 +28,14 @@
 		type LandscapeBox,
 		type ModelLink
 	} from '#lib/landscape/layout.ts';
-	import { openBoxes } from '#lib/landscape/open.ts';
+	import { apiHosts, openBoxes } from '#lib/landscape/open.ts';
 	import { untrack } from 'svelte';
 	import LandscapeNode, { type LandscapeNodeData } from './LandscapeNode.svelte';
 
 	/**
 	 * The whole model, laid out once. Only boxes inside open boxes are mounted; which boxes are
-	 * open follows where they sit on screen (see open.ts), and opening fades over a fixed time.
+	 * open follows whether their contents would be readable on screen (see open.ts), and opening
+	 * fades over a fixed time.
 	 */
 	let { view }: { view: ViewState } = $props();
 
@@ -100,14 +101,25 @@
 		return new Set(out);
 	});
 
+	// Apis sit on the border of their parent's box, or of the nearest shown box round it.
+	const hosts = $derived(apiHosts(boxes, open));
+
 	function onfield(box: string, field: string, ev: 'enter' | 'leave' | 'click') {
 		if (ev === 'enter') view.hover = { box, field };
 		else if (ev === 'leave') view.hover = null;
 		else {
 			const same = view.field?.box === box && view.field.field === field;
 			view.field = same ? null : { box, field };
+			view.api = null;
 			view.selectedNodes = [];
 		}
+	}
+
+	function onapi(api: string) {
+		view.api = view.api === api ? null : api;
+		view.field = null;
+		view.trail = [];
+		view.selectedNodes = [];
 	}
 
 	// Rows to light, by box: the focused row, and the row at the far end of each of its lines.
@@ -180,7 +192,12 @@
 						),
 						incoming: counts,
 						state: view,
-						onfield: (field, ev) => onfield(b.id, field, ev)
+						onfield: (field, ev) => onfield(b.id, field, ev),
+						apis: hosts.get(b.id)?.map((id) => {
+							const a = el(id)!;
+							return { id, name: a.name, method: a.def.method ?? '', path: a.def.path ?? '' };
+						}),
+						onapi
 					} satisfies LandscapeNodeData
 				};
 			});
@@ -292,6 +309,34 @@
 		};
 	});
 
+	const apiInspector = $derived.by(() => {
+		const a = view.api ? el(view.api) : undefined;
+		const from = a?.parentId && boxById.get(a.parentId);
+		if (!a || !from) return undefined;
+		const body = (m: string | undefined, many?: boolean, contentType?: string) => {
+			const t = m ? linkTarget(design.model, boxes, from, m) : undefined;
+			return {
+				model: m ? label(m) + (many ? '[]' : '') : undefined,
+				where: [t ? whereOf(t) : m && 'not drawn', m && (contentType ?? 'application/json')]
+					.filter(Boolean)
+					.join(' · '),
+				target: t && { box: t }
+			};
+		};
+		const d = a.def;
+		return {
+			title: `${d.method} ${d.path}`,
+			sub: [a.name, d.auth && `auth: ${d.auth}`].filter(Boolean).join(' · '),
+			params: d.params ?? [],
+			request: d.request && body(d.request.model, d.request.many, d.request.contentType),
+			responses: (d.responses ?? []).map((r) => ({
+				status: r.status,
+				description: r.description,
+				...body(r.model, r.many, r.contentType)
+			}))
+		};
+	});
+
 	let flashTimer: ReturnType<typeof setTimeout> | undefined;
 
 	/**
@@ -337,6 +382,7 @@
 	}
 
 	function unpin() {
+		view.api = null;
 		view.field = null;
 		view.trail = [];
 	}
@@ -448,6 +494,65 @@
 			{:else}
 				<p class="empty">No references, sources or incoming links.</p>
 			{/each}
+		</aside>
+	{:else if apiInspector}
+		{@const api = apiInspector}
+		<aside class="inspector" data-testid="api-inspector">
+			<header>
+				<div class="head">
+					<div class="title">{api.title}</div>
+					<div class="type">{api.sub}</div>
+				</div>
+				<button class="icon-btn" onclick={unpin} aria-label="Close" title="Close (Esc)">×</button>
+			</header>
+			{#if api.params.length}
+				<section>
+					<h4>Params</h4>
+					{#each api.params as p (p.in + p.name)}
+						<div class="entry">
+							<span class="text">{p.name}{p.required || p.in === 'path' ? '' : '?'}</span>
+							<span class="where"
+								>{p.in} · {p.type}{p.description ? ` · ${p.description}` : ''}</span
+							>
+						</div>
+					{/each}
+				</section>
+			{/if}
+			{#if api.request}
+				{@const r = api.request}
+				<section>
+					<h4>Request</h4>
+					<button
+						class="entry"
+						disabled={!r.target}
+						onclick={() => r.target && flyTo(r.target)}
+						title={r.target ? 'Go to' : undefined}
+					>
+						<span class="text">{r.model}</span>
+						<span class="where">{r.where}</span>
+					</button>
+				</section>
+			{/if}
+			{#if api.responses.length}
+				<section>
+					<h4>Responses</h4>
+					{#each api.responses as r (r.status)}
+						<button
+							class="entry"
+							disabled={!r.target}
+							onclick={() => r.target && flyTo(r.target)}
+							title={r.target ? 'Go to' : undefined}
+						>
+							<span class="text"
+								><b class="status">{r.status}</b>{r.model ?? r.description ?? ''}</span
+							>
+							<span class="where"
+								>{[r.model && r.description, r.where].filter(Boolean).join(' · ')}</span
+							>
+						</button>
+					{/each}
+				</section>
+			{/if}
 		</aside>
 	{/if}
 </div>
@@ -600,6 +705,13 @@
 	}
 	.inspector .from .entry .text::before {
 		color: var(--sdv-link-from);
+	}
+	.inspector .status {
+		font-variant-numeric: tabular-nums;
+		margin-right: 6px;
+	}
+	.inspector div.entry {
+		cursor: default;
 	}
 	.inspector .note,
 	.inspector .empty {
