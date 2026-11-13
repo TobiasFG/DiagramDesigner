@@ -23,6 +23,7 @@
 		modelLinks,
 		refLabel,
 		relationsOf,
+		shownRows,
 		TABLE,
 		typeText,
 		type FieldLink,
@@ -76,6 +77,9 @@
 		focus ? focusLinks(design.model, rels, boxes, focus.box, focus.field) : []
 	);
 	const label = (id: string) => refLabel(design.model, id) ?? id;
+	/** Where row `i` of a card sits, folded or expanded as it is now. */
+	const rowY = (b: LandscapeBox, i: number) =>
+		fieldRowY(i, b.fields?.length ?? 0, !!view.expanded[b.id]);
 	const el = (id: string) => design.model.elements.get(id);
 
 	// State, not derived, so a pan that changes nothing stops here instead of rebuilding nodes
@@ -575,7 +579,7 @@
 			const i = t.box.fields?.findIndex((x) => x.id === t.field) ?? -1;
 			draw(
 				s,
-				s === t.box && i >= 0 ? t.box.absY + fieldRowY(i) : s.absY + s.height / 2,
+				s === t.box && i >= 0 ? t.box.absY + rowY(t.box, i) : s.absY + s.height / 2,
 				'from',
 				f?.part !== 'request'
 			);
@@ -607,6 +611,9 @@
 		const fill = (b: LandscapeBox) => Math.max(b.width / cw, b.height / ch);
 		const zoom = Math.min(Math.max(viewport.current.zoom, 0.8 / fill(area)), 0.92 / fill(t));
 		const row = t.fields?.findIndex((f) => f.id === target.field) ?? -1;
+		// A row hidden in a folded card is shown by expanding the card.
+		if (row >= shownRows(t.fields?.length ?? 0, !!view.expanded[t.id]))
+			view.expanded = { ...view.expanded, [t.id]: true };
 		// Keep [start, start + size] on a canvas side of `side` pixels, if it fits.
 		const keep = (c: number, start: number, size: number, side: number) => {
 			const half = side / 2 / zoom;
@@ -614,7 +621,7 @@
 		};
 		flow.setCenter(
 			keep(t.absX + t.width / 2, area.absX, area.width, cw),
-			keep(t.absY + (row >= 0 ? fieldRowY(row) : t.height / 2), area.absY, area.height, ch),
+			keep(t.absY + (row >= 0 ? rowY(t, row) : t.height / 2), area.absY, area.height, ch),
 			{ zoom, duration: 700 }
 		);
 		view.hover = null;

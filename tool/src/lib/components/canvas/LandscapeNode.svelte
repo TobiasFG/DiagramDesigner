@@ -45,9 +45,11 @@
 </script>
 
 <script lang="ts">
-	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
+	import { Handle, Position, useUpdateNodeInternals, type NodeProps } from '@xyflow/svelte';
 	import {
 		fieldRowY,
+		FOLD,
+		foldable,
 		groupFont,
 		indexFields,
 		indexKind,
@@ -56,6 +58,7 @@
 		LEAF,
 		LINK,
 		slotCount,
+		shownRows,
 		subtitle,
 		TABLE,
 		typeText
@@ -69,6 +72,28 @@
 	const flash = $derived(d.state.flash?.box === id ? d.state.flash.field : undefined);
 	const apiParts = $derived(d.state.apiBoxes[id]);
 	const dim = $derived(d.state.apiDim[id]);
+	// A card of over FOLD fields shows the first ones and a row to show all. Expanded, it keeps
+	// its laid-out size and draws over whatever is below it (see `.node.expanded`).
+	const count = $derived(d.fields?.length ?? 0);
+	const expanded = $derived(!!d.state.expanded[id]);
+	const shown = $derived(d.fields?.slice(0, shownRows(count, expanded)) ?? []);
+	// A lit row hidden in the fold lights the toggle row instead.
+	const hiddenHot = $derived(
+		!expanded && (d.fields ?? []).slice(FOLD).some((f) => hot?.[f.id] || picked === f.id)
+	);
+	const updateNodeInternals = useUpdateNodeInternals();
+	// Handles move with their rows; Svelte Flow measures them only when told.
+	$effect(() => {
+		void expanded;
+		updateNodeInternals(id);
+	});
+	function toggle(e: MouseEvent) {
+		e.stopPropagation();
+		const next = { ...d.state.expanded };
+		if (expanded) delete next[id];
+		else next[id] = true;
+		d.state.expanded = next;
+	}
 	const INCOMING = { inRef: 'ref', inFrom: 'from', inApi: 'api' } as const;
 	const plural = (n: number, one: string, many: string) =>
 		`${n} field${n > 1 ? 's' : ''} ${n > 1 ? many : one}`;
@@ -96,6 +121,7 @@
 	class:selected={d.state.selectedNodes.includes(id)}
 	class:peer-box={d.state.peerBoxes[id]}
 	class:api-box={apiParts}
+	class:expanded={d.table && expanded}
 	style:--fill="var(--sdv-{d.kind}-fill, var(--sdv-container-fill))"
 	style:--stroke="var(--sdv-{d.kind}-stroke, var(--sdv-container-stroke))"
 	style:--text="var(--sdv-{d.kind}-text, var(--sdv-container-text))"
@@ -138,7 +164,7 @@
 							{c.label}
 						</div>
 					{/each}
-					{#each d.fields as f (f.id)}
+					{#each shown as f (f.id)}
 						<!-- svelte-ignore a11y_click_events_have_key_events -->
 						<div
 							class="row"
@@ -220,6 +246,17 @@
 							{/each}
 						</div>
 					{/each}
+					{#if foldable(count)}
+						<button
+							class="cell fold"
+							class:hot={hiddenHot}
+							style:font-size="{TABLE.label}px"
+							title={expanded ? 'Show the first fields only' : 'Show every field'}
+							onclick={toggle}
+						>
+							{expanded ? '▴ Collapse' : `▾ Show all ${count} fields (${count - FOLD} more)`}
+						</button>
+					{/if}
 				</div>
 			{/if}
 			{#if d.indexes?.length}
@@ -244,26 +281,26 @@
 					type="source"
 					id="out:{f.id}:l"
 					position={Position.Left}
-					style="top:{fieldRowY(i)}px"
+					style="top:{fieldRowY(i, count, expanded)}px"
 				/>
 				<Handle
 					type="source"
 					id="out:{f.id}:r"
 					position={Position.Right}
-					style="top:{fieldRowY(i)}px"
+					style="top:{fieldRowY(i, count, expanded)}px"
 				/>
 			{/if}
 			<Handle
 				type="target"
 				id="in:{f.id}:l"
 				position={Position.Left}
-				style="top:{fieldRowY(i)}px"
+				style="top:{fieldRowY(i, count, expanded)}px"
 			/>
 			<Handle
 				type="target"
 				id="in:{f.id}:r"
 				position={Position.Right}
-				style="top:{fieldRowY(i)}px"
+				style="top:{fieldRowY(i, count, expanded)}px"
 			/>
 		{/each}
 	{:else}
@@ -511,6 +548,40 @@
 	.slot svg .fill {
 		fill: currentColor;
 		stroke: none;
+	}
+	/* The toggle row of a folded card. */
+	.cell.fold {
+		grid-column: 1 / -1;
+		justify-content: center;
+		border-left: none;
+		border-right: none;
+		border-bottom: none;
+		background: var(--sdv-model-header);
+		color: var(--sdv-text-muted);
+		font-family: inherit;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		cursor: pointer;
+	}
+	.cell.fold:hover {
+		background: var(--sdv-row-hover);
+		color: var(--sdv-model-text);
+	}
+	.cell.fold.hot {
+		background: var(--sdv-row-peer);
+	}
+	/* Expanded, the card grows past its laid-out size, over the boxes below it. */
+	.node.expanded {
+		height: auto;
+		min-height: 100%;
+	}
+	.node.expanded > .face.table {
+		position: relative;
+		inset: auto;
+		box-shadow: 0 6px 18px rgb(0 0 0 / 0.25);
+	}
+	:global(.svelte-flow__node:has(> .node.expanded)) {
+		z-index: 999 !important;
 	}
 	.list {
 		display: grid;

@@ -28,6 +28,8 @@ export class ViewState {
 	flash = $state.raw<FieldRef | null>(null);
 	/** Rows lit by the focused field, by box: the field itself, or the other end of a link. */
 	hot = $state.raw<Record<string, Record<string, 'self' | 'peer'>>>({});
+	/** Folded cards (over `FOLD` fields) shown in full, by box; they stay so until collapsed. */
+	expanded = $state.raw<Record<string, true>>({});
 	/** Boxes holding the other end of a focused link, outlined so a closed box shows where. */
 	peerBoxes = $state.raw<Record<string, true>>({});
 }
