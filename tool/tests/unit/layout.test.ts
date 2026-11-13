@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+	fieldRowY,
+	FOLD,
 	focusLinks,
 	LEAF,
 	layoutLandscape,
 	modelLinks,
-	relationsOf
+	relationsOf,
+	shownRows,
+	TABLE
 } from '../../src/lib/landscape/layout';
 import { railGroups, railOf } from '../../src/lib/landscape/apis';
 import { textWidth } from '../../src/lib/render/text';
@@ -295,5 +299,36 @@ describe('landscape layout', () => {
 			['dto', 'dto-n', 'src', 'src-n']
 		]);
 		expect(links[1].parentId).toBe('api');
+	});
+});
+
+describe('folded model cards', () => {
+	const card = (n: number) => {
+		const fields = Array.from({ length: n }, (_, i) => `  - { id: f${i}, name: f${i}, type: int }`);
+		return layoutLandscape(
+			loadStrings({
+				's/s.system.yaml': 'id: s\n',
+				's/m.module.yaml': 'id: m\nparent: s\n',
+				's/a.model.yaml': ['id: a', 'ownedBy: m', 'fields:', ...fields].join('\n')
+			}).model
+		).find((b) => b.id === 'a')!;
+	};
+
+	it(`lays out a card of over ${FOLD} fields as ${FOLD} rows and a toggle row`, () => {
+		expect(card(FOLD).fields).toHaveLength(FOLD);
+		expect(card(FOLD + 1).height).toBe(card(FOLD).height + TABLE.rowHeight);
+		expect(card(80).height).toBe(card(FOLD + 1).height);
+		expect(card(80).fields).toHaveLength(80);
+	});
+
+	it('ends the lines of hidden rows on the toggle row until the card is expanded', () => {
+		expect(fieldRowY(FOLD + 5, 80, false)).toBe(fieldRowY(FOLD, 80, true));
+		expect(fieldRowY(FOLD + 5, 80, true)).toBe(fieldRowY(FOLD, 80, true) + 5 * TABLE.rowHeight);
+		expect(fieldRowY(3, 80, false)).toBe(fieldRowY(3, 10, false));
+		expect([shownRows(80, false), shownRows(80, true), shownRows(FOLD, false)]).toEqual([
+			FOLD,
+			80,
+			FOLD
+		]);
 	});
 });

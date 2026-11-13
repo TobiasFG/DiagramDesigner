@@ -245,8 +245,22 @@ export function viewFields(
 	});
 }
 
-/** Vertical centre of field row `i`: below the border, the name bar and the header row. */
-export const fieldRowY = (i: number) => 1 + TABLE.head + (i + 1.5) * TABLE.rowHeight;
+/** A card with more fields than this shows only the first ones, and a row to show all. */
+export const FOLD = 20;
+
+/** Whether a card of `count` fields is folded: its later rows hide behind a toggle row. */
+export const foldable = (count: number) => count > FOLD;
+
+/** How many field rows a card of `count` fields shows. */
+export const shownRows = (count: number, expanded: boolean) =>
+	foldable(count) && !expanded ? FOLD : count;
+
+/**
+ * Vertical centre of field row `i` of `count`: below the border, the name bar and the header
+ * row. A row hidden in a folded card sits on the toggle row, so its lines end there.
+ */
+export const fieldRowY = (i: number, count: number, expanded: boolean) =>
+	1 + TABLE.head + (Math.min(i, shownRows(count, expanded)) + 1.5) * TABLE.rowHeight;
 
 /** Badges have 6px side padding (see LandscapeNode). */
 const badgesWidth = (labels: string[]) =>
@@ -358,7 +372,9 @@ function tableLayout(
 		...indexes.map((ix) => indexWidth(ix, fields))
 	);
 	const rows = (n: number) => (n ? n + 1 : 0);
-	const height = TABLE.head + (rows(fields.length) + rows(indexes.length)) * TABLE.rowHeight;
+	// Laid out folded: an expanded card draws over what is below it rather than moving it.
+	const fieldRows = rows(shownRows(fields.length, false)) + (foldable(fields.length) ? 1 : 0);
+	const height = TABLE.head + (fieldRows + rows(indexes.length)) * TABLE.rowHeight;
 	return { size: { width: Math.ceil(width) + 2, height: height + 2 }, cols };
 }
 
