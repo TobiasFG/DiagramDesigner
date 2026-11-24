@@ -6,7 +6,7 @@ import { railGroups, railOf } from './apis';
 import { edgeKey, edgesOf, type Edge } from './connections';
 import type { ElkNode } from 'elkjs/lib/elk-api';
 import { elkLayout } from './elk';
-import { clearanceOf, ROUTE } from './route';
+import { clearanceOf, pitchOf, ROUTE } from './route';
 
 /** A model is drawn as a class where it is owned, as a table where it is stored. */
 export type ModelView = 'class' | 'table';
@@ -53,6 +53,8 @@ export interface LandscapeBox {
 	 * layout leaves that much more room round it, and inside it if it holds boxes.
 	 */
 	clear: number;
+	/** Canvas px between the lines at rest among its children, when more than `ROUTE.spread`. */
+	pitch?: number;
 }
 
 interface Size {
@@ -88,7 +90,10 @@ export interface LayoutOptions {
 	method: 'layered' | 'stress';
 	/** Which way connections run: what is depended on comes first. */
 	direction: 'RIGHT' | 'DOWN' | 'LEFT' | 'UP';
-	/** Scales the room between boxes: 120 px between systems, 32 inside a box at 1. */
+	/**
+	 * Scales the room between boxes: 160 px between systems, 48 inside a box at 1, before the
+	 * room for the lines between them.
+	 */
 	spacing: number;
 	placement: 'NETWORK_SIMPLEX' | 'BRANDES_KOEPF' | 'LINEAR_SEGMENTS' | 'SIMPLE';
 	/** Width over height that unconnected groups are packed into. */
@@ -681,18 +686,20 @@ interface Block extends Size {
 }
 
 /**
- * ELK's spacing at one level: `gap` between boxes, and lines spaced as the canvas routes them
- * (see route.ts), so ELK keeps room between boxes for as many lines as run there.
+ * ELK's spacing at one level: `gap` between boxes, and lines `pitch` apart as the canvas routes
+ * them (see route.ts), so ELK keeps room between boxes for as many lines as run there: `gap`,
+ * plus `pitch` a line, plus the room the canvas keeps off either box.
  */
-const spacing = (gap: number) => ({
+const spacing = (gap: number, pitch: number) => ({
 	'elk.spacing.nodeNode': String(gap),
 	'elk.spacing.componentComponent': String(gap),
 	'elk.layered.spacing.nodeNodeBetweenLayers': String(gap),
-	'elk.spacing.edgeEdge': String(ROUTE.spread),
-	// Twice the room the canvas keeps round a box: its lines do not all run where ELK's do.
-	'elk.spacing.edgeNode': String(2 * ROUTE.buffer),
-	'elk.layered.spacing.edgeEdgeBetweenLayers': String(ROUTE.spread),
-	'elk.layered.spacing.edgeNodeBetweenLayers': String(2 * ROUTE.buffer)
+	// No more than `gap` within a layer: ELK's compaction fails on lines kept further apart there
+	// than boxes ("Invalid hitboxes for scanline constraint calculation").
+	'elk.spacing.edgeEdge': String(Math.min(pitch, gap)),
+	'elk.spacing.edgeNode': String(gap / 2 + ROUTE.buffer),
+	'elk.layered.spacing.edgeEdgeBetweenLayers': String(pitch),
+	'elk.layered.spacing.edgeNodeBetweenLayers': String((gap + pitch) / 2 + ROUTE.buffer)
 });
 
 type Placed = { id: string; x: number; y: number; width: number; height: number };
@@ -781,6 +788,8 @@ export interface LaidLine {
 export interface Landscape {
 	boxes: LandscapeBox[];
 	lines: LaidLine[];
+	/** Canvas px between the lines at rest among the top-level boxes, when more than `ROUTE.spread`. */
+	pitch?: number;
 }
 
 /**
@@ -804,8 +813,8 @@ export function layoutLandscape(
 	opts: LayoutOptions = DEFAULT_LAYOUT,
 	foldAt = new Map<string, number>()
 ): Landscape {
-	const gap = 32 * opts.spacing;
-	const systemGap = 120 * opts.spacing;
+	const gap = 48 * opts.spacing;
+	const systemGap = 160 * opts.spacing;
 	const out: LandscapeBox[] = [];
 	const sizes = new Map<string, Size>();
 	const cards = new Map<string, { cols: TableColumn[]; fields: ModelField[] }>();
@@ -1010,7 +1019,8 @@ export function layoutLandscape(
 				triggers: item.card === 'triggers' ? logicCards.get(item.id) : undefined,
 				channel: item.card === 'channel' ? logicCards.get(item.id) : undefined,
 				...(item.view === 'table' && storedAsFile(model, item.el) ? { files: true as const } : {}),
-				clear: clear.get(item.id) ?? ROUTE.buffer
+				clear: clear.get(item.id) ?? ROUTE.buffer,
+				pitch: pitches.get(item.id)
 			};
 			out.push(box);
 			const m = extra(item.id);
@@ -1117,10 +1127,14 @@ export function layoutLandscape(
 
 	// Each group's children, relative to the room inside it ('' for the top level).
 	const blocks = new Map<string, Block>();
+	/** The pitch of the lines among each group's children, where more than `ROUTE.spread`. */
+	const pitches = new Map<string, number>();
 	/**
 	 * Siblings `parent` holds (none for the top level), `g` apart: those lines join laid out
 	 * together, the groups no line joins packed. Every group among them is laid out inside first
-	 * and then stands as one box of its size, at least `opts.minShare` of the largest.
+	 * and then stands as one box of its size, at least `opts.minShare` of the largest. Lines
+	 * among them are given room `ROUTE.spread` apart, or as far apart as they are routed in a box
+	 * of the size that makes (see `pitchOf`), laid out again if that is further.
 	 */
 	const layout = (parent: string | undefined, kids: Item[], g: number): Block => {
 		for (const item of kids) {
@@ -1142,19 +1156,28 @@ export function layoutLandscape(
 		}
 		atLeast(kids);
 		const parts = components(parent, kids);
-		return parts.length === 1
-			? run(kids, g)
-			: pack(
-					parts.map((c) => run(c, g)),
-					g
-				);
+		const lay = (pitch: number) =>
+			parts.length === 1
+				? run(kids, g, pitch)
+				: pack(
+						parts.map((c) => run(c, g, pitch)),
+						g
+					);
+		const block = lay(ROUTE.spread);
+		if (!lines.some((l) => l.parentId === parent)) return block;
+		const pitch = parent
+			? pitchOf(block.width + 2 * PAD + (inner.get(parent) ?? 0), block.height + HEADER + PAD)
+			: pitchOf(block.width, block.height, true);
+		if (pitch <= ROUTE.spread) return block;
+		pitches.set(parent ?? '', pitch);
+		return lay(pitch);
 	};
 	/**
 	 * Siblings `top`, `g` apart and further by what each keeps clear beyond `buffer` (see
-	 * `extra`), as one ELK graph.
+	 * `extra`), lines among them `pitch` apart, as one ELK graph.
 	 */
-	const run = (top: Item[], g: number): Block => {
-		const block = placed(top, g);
+	const run = (top: Item[], g: number, pitch: number): Block => {
+		const block = placed(top, g, pitch);
 		for (const item of top) {
 			const at = block.at.get(item.id)!;
 			const m = extra(item.id);
@@ -1163,7 +1186,7 @@ export function layoutLandscape(
 		return block;
 	};
 	/** Siblings `top` placed as `run` does, each grown by its `extra` all round. */
-	const placed = (top: Item[], g: number): Block => {
+	const placed = (top: Item[], g: number, pitch: number): Block => {
 		const ids = new Set(top.map((i) => i.id));
 		const children = top.map((item) => {
 			const size = sizes.get(item.id)!;
@@ -1179,7 +1202,7 @@ export function layoutLandscape(
 		const graph = elkLayout({
 			id: 'root',
 			layoutOptions: {
-				...spacing(g),
+				...spacing(g, pitch),
 				'elk.algorithm': 'layered',
 				'elk.direction': opts.direction,
 				'elk.padding': '[top=0,left=0,bottom=0,right=0]',
@@ -1251,7 +1274,7 @@ export function layoutLandscape(
 	blocks.set('', layout(undefined, roots, systemGap));
 
 	place(roots, { x: 0, y: 0, ...blocks.get('')! });
-	return { boxes: out, lines };
+	return { boxes: out, lines, pitch: pitches.get('') };
 }
 
 const modelOf = (model: Model, id: string) => model.fields.get(id)?.modelId ?? id;

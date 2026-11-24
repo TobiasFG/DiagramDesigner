@@ -4,7 +4,7 @@ import type { RestLine } from './connections.ts';
 import { cardRows, TABLE, type LandscapeBox } from './layout.ts';
 import { apiHosts } from './open.ts';
 import { keyedGroup, type KeyedGroup } from './route-client.ts';
-import type { Rect, RouteGroup } from './route.ts';
+import { ROUTE, type Rect, type RouteGroup } from './route.ts';
 
 /**
  * What the canvas draws, worked out from a layout: rails, line ends and the groups lines at
@@ -49,14 +49,16 @@ export const headEnd = (b: LandscapeBox) => ({
  * and never leaves it, so each box routes its children's lines
  * with only its children, rails and all, in the way. Each end leaves by the side facing the
  * other box, so lines leaving a box one way share an exit and never set off the wrong way round
- * it. Each group is kept by its own boxes and lines, so a change routes only the groups it
- * touched.
+ * it. Lines are spaced as the layout left room for them (`pitch`, the top level's; see
+ * route.ts `pitchOf`). Each group is kept by its own boxes and lines, so a change routes only
+ * the groups it touched.
  */
 export function restGroups(
 	boxes: LandscapeBox[],
 	boxById: Map<string, LandscapeBox>,
 	rails: Map<string, Rail>,
-	rest: RestLine[]
+	rest: RestLine[],
+	pitch = ROUTE.spread
 ): KeyedGroup[] {
 	const groups = new Map<string, RouteGroup>();
 	const group = (parent: string | undefined) => {
@@ -74,7 +76,8 @@ export function restGroups(
 					clear: b.clear
 				});
 			}
-		g = { boxes: kids, lines: [] };
+		const spread = parent === undefined ? pitch : (boxById.get(parent)!.pitch ?? ROUTE.spread);
+		g = { boxes: kids, lines: [], spread };
 		groups.set(parent ?? '', g);
 		return g;
 	};

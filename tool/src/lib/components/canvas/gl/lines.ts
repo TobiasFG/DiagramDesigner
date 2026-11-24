@@ -4,37 +4,42 @@
  * A layer of lines is one PixiJS Mesh. Its vertices sit on the lines' points in canvas px and
  * carry, beside them, everything that keeps its size on screen in screen px: how far the vertex
  * moves out to the line's edge (miter joins, butt caps), how far a line's end draws back under
- * its head, the head's corners. The vertex shader takes the zoom from the mesh's world
- * transform and divides those screen px by it, so the camera moving changes a matrix and no
- * vertex. The fragment shader draws dashes in screen px from the distance along the line,
- * smooths each line's sides from its distance to the centre in device px, and leaves out a
- * line's body where its head covers it, so a faded line is not darker under its head.
+ * its mark, so a faded line is not darker there, and the marks' corners. The vertex shader
+ * takes the zoom from the mesh's world transform and divides those screen px by it, so the
+ * camera moving changes a matrix and no vertex. The fragment shader draws dashes in screen px
+ * from the distance along the line, and smooths each line's sides from its distance to the
+ * centre in device px.
+ *
+ * A line leaving something starts in a dot (or, holding it, a diamond) and ends in an arrow on
+ * what it reaches, so a line going out of a box reads apart from one coming in.
  *
  * Each segment is its own quad, cut on the miter at either end, so the distance along it is
  * exact across its width and dashes end square. Per line, in order: its halo (the same path
- * wider, in the canvas colour), its body, its head; the mesh draws them in that order, so a
- * later line's halo cuts through an earlier line where they cross, as each line drawn on its
- * own would.
+ * wider, in the canvas colour) and the halos round its marks, its body, its marks; the mesh
+ * draws them in that order, so a later line's halo cuts through an earlier line where they
+ * cross, and marks side by side stay apart, as each line drawn on its own would.
  *
  * A segment sharing a stretch with other lines is drawn in its lane beside them (see
  * landscape/lanes.ts): its vertices carry its lane and that of the segment it bends into, and
  * the shader moves them by both, in screen px, so the corners of lanes meet square too.
  */
 import type { Buffer, Geometry, Mesh, Shader } from 'pixi.js';
-import type { Lane } from '#lib/landscape/lanes.ts';
+import { LANE, type Lane } from '#lib/landscape/lanes.ts';
 import type { Point } from '#lib/landscape/route.ts';
 import type { Token } from '#lib/theme/tokens.ts';
 
 type Pixi = typeof import('pixi.js');
 
-/** What a line looks like; widths, dashes and heads in screen px, points in canvas px. */
+/** What a line looks like; widths, dashes and marks in screen px, points in canvas px. */
 export interface LineSpec {
 	points: readonly Point[];
 	width: number;
 	color: Token;
-	/** An arrow at the end or a diamond at the start. */
-	head?: 'arrow' | 'diamond';
-	/** Width of the halo in the canvas colour under the line. */
+	/** A dot or a diamond on the line's start, where it leaves what it starts on. */
+	start?: 'dot' | 'diamond';
+	/** An arrow on the line's end, where it reaches what it ends on. */
+	arrow?: boolean;
+	/** Width of the halo in the canvas colour under the line and round its marks. */
 	halo?: number;
 	/** Dash and gap. */
 	dash?: readonly [number, number];
@@ -47,31 +52,32 @@ export interface LineSpec {
 	lanes?: readonly (Lane | undefined)[];
 }
 
-/** Heads in screen px: length along the line and width across it. */
-export const HEADS = {
-	arrow: { length: 10, width: 8 },
-	diamond: { length: 16, width: 10 }
+/**
+ * Marks in screen px: an arrow's and a diamond's length along the line and width across it; a
+ * dot's diameter, and on lines `wide` or wider, `wideDot`.
+ */
+export const MARKS = {
+	arrow: { length: 12, width: 10 },
+	diamond: { length: 16, width: 10 },
+	dot: 7,
+	wideDot: 9,
+	wide: 2.5
 } as const;
-/** How far a line's body runs into its head, in screen px, so a wide line does not blunt the tip. */
-export const HEAD_INSET = 5;
 const DIM_ALPHA = 0.25;
 /** Room beyond a line's edge for its smoothed edge, in screen px (at least half a device px). */
 const FRINGE = 1;
 /** A miter longer than this many half widths (a near reversal) is cut short. */
 const MITER_LIMIT = 4;
-/** No cut: a value far below any distance. */
-const NO_CUT = -1e6;
-/** A diamond's two triangles, from its tip round. */
-const DIAMOND = [0, 1, 2, 0, 2, 3];
+/** Corners of a dot. */
+const DOT_SIDES = 16;
 
 /**
  * A vertex, in floats: position (canvas px), offset (screen px), shift (unit direction, the
- * canvas px it may move, the sign it moves the distance by), edge (distance from the centre
- * and half width, screen px), along (distance along the line in canvas px, plus screen px),
- * dash (dash, gap, phase), head (+1 or -1 towards the tip, where the tip is along the line,
- * how much of the body the head covers in screen px, its segment's length), colour (four
- * bytes), lane (its segment's: steps across, screen px a step, canvas px a step at most), bend
- * (the lane of the segment it bends into at this corner, likewise).
+ * canvas px it may move, screen px it moves, signed as it moves the distance along), edge
+ * (distance from the centre and half width, screen px), along (distance along the line in
+ * canvas px, plus screen px), dash (dash, gap, phase), colour (four bytes), lane (its segment's:
+ * steps across, screen px a step at least, canvas px a step at most), bend (the lane of the
+ * segment it bends into at this corner, likewise).
  */
 const F = {
 	offset: 2,
@@ -79,12 +85,11 @@ const F = {
 	edge: 8,
 	along: 10,
 	dash: 12,
-	head: 15,
-	colour: 19,
-	lane: 20,
-	bend: 24
+	colour: 15,
+	lane: 16,
+	bend: 20
 } as const;
-export const STRIDE = 28;
+export const STRIDE = 24;
 
 /** A layer's vertices and indices, kept and grown across builds. */
 export class LineBuffers {
@@ -165,6 +170,71 @@ function fade(rgba: number, a: number): number {
 	return ((rgba & 0xffffff) | (Math.round((rgba >>> 24) * a) << 24)) >>> 0;
 }
 
+type Shape = readonly (readonly [number, number])[];
+
+/**
+ * A mark's outline, as screen px back from where it sits along the line and aside from it, and
+ * how far the line's body draws back under it, so a faded line is not darker there. Each is
+ * convex, its first corner on the line's end.
+ */
+function markOf(kind: 'arrow' | 'diamond' | 'dot', width: number): { shape: Shape; pull: number } {
+	const hw = width / 2;
+	if (kind === 'arrow') {
+		const { length: l, width: w } = MARKS.arrow;
+		return {
+			shape: [
+				[0, 0],
+				[l, w / 2],
+				[l, -w / 2]
+			],
+			pull: l - 0.5
+		};
+	}
+	if (kind === 'diamond') {
+		const { length: l, width: w } = MARKS.diamond;
+		return {
+			shape: [
+				[0, 0],
+				[l / 2, w / 2],
+				[l, 0],
+				[l / 2, -w / 2]
+			],
+			pull: l - (l / 2) * (hw / (w / 2))
+		};
+	}
+	const r = (width >= MARKS.wide ? MARKS.wideDot : MARKS.dot) / 2;
+	return {
+		shape: Array.from({ length: DOT_SIDES }, (_, i) => {
+			const a = (2 * Math.PI * i) / DOT_SIDES;
+			return [r * Math.cos(a), r * Math.sin(a)] as const;
+		}),
+		pull: Math.sqrt(r * r - hw * hw)
+	};
+}
+
+/** A convex outline grown `m` px all round, its corners kept sharp. */
+function grown(shape: Shape, m: number): Shape {
+	const n = shape.length;
+	let area = 0;
+	for (let i = 0; i < n; i++) {
+		const [a, b] = [shape[i], shape[(i + 1) % n]];
+		area += a[0] * b[1] - b[0] * a[1];
+	}
+	const turn = area > 0 ? 1 : -1;
+	/** The outward normal of the edge from corner `i` to the next. */
+	const normal = (i: number) => {
+		const [a, b] = [shape[i], shape[(i + 1) % n]];
+		const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+		const l = Math.hypot(dx, dy);
+		return [(turn * dy) / l, (-turn * dx) / l] as const;
+	};
+	return shape.map((p, i) => {
+		const [n1, n2] = [normal((i + n - 1) % n), normal(i)];
+		const d = 1 + n1[0] * n2[0] + n1[1] * n2[1];
+		return [p[0] + (m * (n1[0] + n2[0])) / d, p[1] + (m * (n1[1] + n2[1])) / d] as const;
+	});
+}
+
 /**
  * Fills `out` with the triangles of `lines`, in order; true if its arrays were replaced. `rgba`
  * gives a token's colour as four bytes, red in the lowest (see `tokenRgba`).
@@ -180,8 +250,12 @@ export function buildLines(
 		const n = l.points.length;
 		if (n < 2) continue;
 		const strips = l.halo ? 2 : 1;
-		nv += strips * 4 * (n - 1) + 4;
-		ni += strips * 6 * (n - 1) + 6;
+		nv += strips * 4 * (n - 1);
+		ni += strips * 6 * (n - 1);
+		const corners = (l.start === 'dot' ? DOT_SIDES : l.start ? 4 : 0) + (l.arrow ? 3 : 0);
+		const marks = (l.start ? 1 : 0) + (l.arrow ? 1 : 0);
+		nv += strips * corners;
+		ni += strips * 3 * (corners - 2 * marks);
 	}
 	const grew = out.reserve(nv, ni);
 	const v = out.vertices;
@@ -208,7 +282,6 @@ export function buildLines(
 		v[k + F.offset + 1] = oy;
 		v[k + F.edge] = side;
 		v[k + F.edge + 1] = half;
-		v[k + F.head + 2] = NO_CUT;
 		w[k + F.colour] = colour;
 		return vc++;
 	};
@@ -227,23 +300,17 @@ export function buildLines(
 
 	/**
 	 * Quads along the cleaned points, `hw` screen px either side of them, mitered; for a line's
-	 * body, with its head (where its end draws back, what the head covers) and dash.
+	 * body, drawn back `pulls` screen px from its start and end under its marks, and its dash.
 	 */
 	const strip = (
 		n: number,
 		hw: number,
 		colour: number,
-		head: LineSpec['head'],
+		pulls: readonly [number, number],
 		dash: LineSpec['dash']
 	) => {
 		const e = hw + FRINGE;
 		const total = ds[n - 1];
-		// How far from its tip the head covers the whole width of the body, in screen px.
-		const hl = head ? HEADS[head].length : 0;
-		const covered =
-			head === 'arrow' ? hl : head ? hl - (hl / 2) * (hw / (HEADS[head].width / 2)) : 0;
-		// The segment the head is on, in canvas px.
-		const headSeg = head === 'arrow' ? total - ds[n - 2] : head ? ds[1] : 0;
 		for (let s = 0; s < n - 1; s++) {
 			const len = ds[s + 1] - ds[s];
 			const ux = (xs[s + 1] - xs[s]) / len;
@@ -261,27 +328,22 @@ export function buildLines(
 					const k = vertex(xs[i], ys[i], sign * ox, sign * oy, sign * e, hw, colour) * STRIDE;
 					lane(k, F.lane, s);
 					lane(k, F.bend, i === s ? s - 1 : s + 1);
-					if (!head && !dash) continue;
-					// The end under the head draws back HEAD_INSET px, never past its segment's other end.
-					if ((head === 'arrow' && i === n - 1) || (head === 'diamond' && i === 0)) {
-						const toward = head === 'arrow' ? -1 : 1;
+					// An end under a mark draws back, never past its segment's other end.
+					const pull = i === 0 ? pulls[0] : i === n - 1 ? -pulls[1] : 0;
+					if (pull) {
+						const toward = Math.sign(pull);
 						v[k + F.shift] = toward * ux;
 						v[k + F.shift + 1] = toward * uy;
-						v[k + F.shift + 2] = headSeg;
-						v[k + F.shift + 3] = toward;
+						v[k + F.shift + 2] = i === 0 ? ds[1] : total - ds[n - 2];
+						v[k + F.shift + 3] = pull;
 					}
+					if (!dash) continue;
 					v[k + F.along] = ds[i];
 					v[k + F.along + 1] = sign * along;
-					v[k + F.dash] = dash?.[0] ?? 0;
-					v[k + F.dash + 1] = dash?.[1] ?? 0;
-					// A diamond's line dashes from where it leaves the diamond.
-					v[k + F.dash + 2] = head === 'diamond' ? -HEAD_INSET : 0;
-					if (head) {
-						v[k + F.head] = head === 'arrow' ? -1 : 1;
-						v[k + F.head + 1] = head === 'arrow' ? total : 0;
-						v[k + F.head + 2] = covered;
-						v[k + F.head + 3] = headSeg;
-					}
+					v[k + F.dash] = dash[0];
+					v[k + F.dash + 1] = dash[1];
+					// Dashes start where the line shows from under its start mark.
+					v[k + F.dash + 2] = -pulls[0];
 				}
 			}
 			ix[ic++] = first;
@@ -293,24 +355,16 @@ export function buildLines(
 		}
 	};
 
-	for (const l of lines) {
-		if (l.points.length < 2) continue;
-		const n = clean(l.points);
-		if (n < 2) continue;
-		lanes = l.lanes?.length === n - 1 ? l.lanes : undefined;
-		const a = l.dim ? DIM_ALPHA : 1;
-		if (l.halo) strip(n, l.halo / 2, fade(rgba('canvas-bg'), a), undefined, undefined);
-		const colour = fade(rgba(l.color), a);
-		strip(n, l.width / 2, colour, l.head, l.dash);
-		if (!l.head) continue;
-		// The head, along the segment it ends: its tip on the line's end (arrow) or start (diamond).
-		const { length: hl, width: hw } = HEADS[l.head];
-		const end = l.head === 'arrow' ? n - 1 : 0;
-		const from = l.head === 'arrow' ? n - 2 : 1;
+	/**
+	 * A mark `shape` on the end of the line at cleaned point `end`, along the segment from point
+	 * `from`, as a fan of triangles from its first corner.
+	 */
+	const mark = (shape: Shape, end: number, from: number, colour: number) => {
 		const len = Math.abs(ds[end] - ds[from]);
 		const ux = (xs[end] - xs[from]) / len;
 		const uy = (ys[end] - ys[from]) / len;
-		const at = (along: number, side: number) => {
+		const first = vc;
+		for (const [along, side] of shape) {
 			const k = vertex(
 				xs[end],
 				ys[end],
@@ -321,21 +375,33 @@ export function buildLines(
 				colour
 			);
 			lane(k * STRIDE, F.lane, Math.min(end, from));
-			return k;
-		};
-		const tip = at(0, 0);
-		if (l.head === 'arrow') {
-			at(hl, hw / 2);
-			at(hl, -hw / 2);
-			ix[ic++] = tip;
-			ix[ic++] = tip + 1;
-			ix[ic++] = tip + 2;
-		} else {
-			at(hl / 2, hw / 2);
-			at(hl, 0);
-			at(hl / 2, -hw / 2);
-			for (const k of DIAMOND) ix[ic++] = tip + k;
 		}
+		for (let i = 1; i < shape.length - 1; i++) {
+			ix[ic++] = first;
+			ix[ic++] = first + i;
+			ix[ic++] = first + i + 1;
+		}
+	};
+
+	for (const l of lines) {
+		if (l.points.length < 2) continue;
+		const n = clean(l.points);
+		if (n < 2) continue;
+		lanes = l.lanes?.length === n - 1 ? l.lanes : undefined;
+		const a = l.dim ? DIM_ALPHA : 1;
+		const start = l.start && markOf(l.start, l.width);
+		const arrow = l.arrow ? markOf('arrow', l.width) : undefined;
+		const colour = fade(rgba(l.color), a);
+		if (l.halo) {
+			const bg = fade(rgba('canvas-bg'), a);
+			const m = Math.max(0, (l.halo - l.width) / 2);
+			strip(n, l.halo / 2, bg, [0, 0], undefined);
+			if (start) mark(grown(start.shape, m), 0, 1, bg);
+			if (arrow) mark(grown(arrow.shape, m), n - 1, n - 2, bg);
+		}
+		strip(n, l.width / 2, colour, [start?.pull ?? 0, arrow?.pull ?? 0], l.dash);
+		if (start) mark(start.shape, 0, 1, colour);
+		if (arrow) mark(arrow.shape, n - 1, n - 2, colour);
 	}
 	out.vertexCount = vc;
 	out.indexCount = ic;
@@ -371,7 +437,6 @@ in vec4 aShift;
 in vec2 aEdge;
 in vec2 aAlong;
 in vec3 aDash;
-in vec4 aHead;
 in vec4 aColor;
 in vec4 aLane;
 in vec4 aBend;
@@ -385,25 +450,27 @@ uniform vec4 uColor;
 out vec4 vColor;
 out vec2 vEdge;
 out vec3 vDash;
-out float vCut;
+
+float laneStep(vec4 l, float zoom) {
+	return min(clamp(${LANE.pitch.toFixed(1)} * zoom, l.z, ${LANE.most.toFixed(1)}), l.w * zoom);
+}
 
 void main() {
 	mat3 model = uWorldTransformMatrix * uTransformMatrix;
 	// Canvas px to screen px: the camera's scale.
 	float zoom = length(model[0].xy);
-	// An end under a head draws back ${HEAD_INSET} px, never past its segment's other end.
-	float pull = min(${HEAD_INSET.toFixed(1)}, aShift.z * zoom);
-	// Lanes: steps across, each its screen px but no more than its canvas px allow.
-	vec2 lane = aLane.xy * min(aLane.z, aLane.w * zoom) + aBend.xy * min(aBend.z, aBend.w * zoom);
+	// An end under a mark draws back its screen px, never past its segment's other end.
+	float pull = min(abs(aShift.w), aShift.z * zoom);
+	// Lanes: steps across, each ${LANE.pitch} canvas px kept between its least screen px and
+	// ${LANE.most}, but no more than its canvas px allow.
+	vec2 lane = aLane.xy * laneStep(aLane, zoom) + aBend.xy * laneStep(aBend, zoom);
 	vec2 p = aPosition + (aOffset + aShift.xy * pull + lane) / zoom;
 	gl_Position = vec4((uProjectionMatrix * model * vec3(p, 1.0)).xy, 0.0, 1.0);
 	vColor = vec4(aColor.rgb * aColor.a, aColor.a) * uColor * uWorldColorAlpha;
 	vEdge = aEdge;
 	// Screen px along the line.
-	float s = aAlong.x * zoom + aAlong.y + aShift.w * pull;
+	float s = aAlong.x * zoom + aAlong.y + sign(aShift.w) * pull;
 	vDash = vec3(s + aDash.z, aDash.xy);
-	// Screen px from the head's tip past what the head covers, which stays on its own segment.
-	vCut = aHead.x * (s - aHead.y * zoom) - min(aHead.z, aHead.w * zoom);
 }
 `;
 
@@ -411,7 +478,6 @@ const fragment = /* glsl */ `
 in vec4 vColor;
 in vec2 vEdge;
 in vec3 vDash;
-in float vCut;
 
 uniform float uPixel;
 
@@ -423,7 +489,7 @@ float cover(float d) {
 }
 
 void main() {
-	float a = cover(vEdge.y - abs(vEdge.x)) * cover(vCut);
+	float a = cover(vEdge.y - abs(vEdge.x));
 	if (vDash.y > 0.0) {
 		float period = vDash.y + vDash.z;
 		float t = mod(vDash.x, period);
@@ -481,7 +547,6 @@ export class LineLayer {
 				aEdge: at(F.edge, 'float32x2'),
 				aAlong: at(F.along, 'float32x2'),
 				aDash: at(F.dash, 'float32x3'),
-				aHead: at(F.head, 'float32x4'),
 				aColor: at(F.colour, 'unorm8x4'),
 				aLane: at(F.lane, 'float32x4'),
 				aBend: at(F.bend, 'float32x4')

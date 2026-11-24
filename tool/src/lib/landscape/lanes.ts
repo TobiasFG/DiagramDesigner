@@ -8,22 +8,24 @@ import type { Point, Rect } from './route.ts';
  * row out of one point. Here
  * every straight piece of a route that lies on another's is given a lane: the pieces sharing a
  * stretch are ordered so their lines cross no more than they must (see `side`), and spread
- * about where the router put them, `step` screen px apart, leaning to the side with more room.
- * The lanes keep that spacing on screen at any zoom, as line widths do, so the shift is worked
- * out by the lines' shader (see gl/lines.ts, and `lanePoints` for the same sum here). Zoomed
- * out, a lane never shifts further than the room round its stretch allows (`room`, canvas px):
+ * about where the router put them, leaning to the side with more room. On screen they are
+ * `LANE.pitch` canvas px apart, but never nearer than `LANE.least` px nor further than
+ * `LANE.most`: zoomed out they keep apart, zoomed in they spread with the boxes. The shift is
+ * worked out by the lines' shader (see gl/lines.ts, and `lanePoints` for the same sum here).
+ * Zoomed out, a lane never shifts further than the room round its stretch allows (`room`, canvas px):
  * off the boxes beside it, halfway to the next line, within the row it ends on, and short of
  * the far end of a piece it bends back along; past that its lines close up again.
  */
 
 /**
- * The lane of one piece of a line: it is drawn `(nx, ny)` × min(`step`, `room` × zoom) screen
- * px off its route, where `(nx, ny)` is the lane's place across the stretch, in steps.
+ * The lane of one piece of a line: it is drawn `(nx, ny)` steps off its route, where `(nx, ny)`
+ * is the lane's place across the stretch; a step is `LANE.pitch` × zoom screen px, between
+ * `step` and `LANE.most`, and at most `room` × zoom (see `stepAt`).
  */
 export interface Lane {
 	nx: number;
 	ny: number;
-	/** Screen px between lanes. */
+	/** Screen px between lanes at least. */
 	step: number;
 	/** Canvas px between lanes at most. */
 	room: number;
@@ -32,8 +34,6 @@ export interface Lane {
 export interface LaneLine {
 	id: string;
 	points: readonly Point[];
-	/** Width on screen, px; lanes are a width and `LANE.gap` apart. */
-	width: number;
 	/** Canvas px an end may slide along the side of what it ends on: [start, end]. */
 	ends?: readonly [number, number];
 }
@@ -46,10 +46,11 @@ export interface Laned {
 }
 
 /**
- * Screen px of clear space between two lines in neighbouring lanes; canvas px a lane keeps off
- * a box at least; canvas px an end slides along what it ends on, unless told.
+ * Lanes `pitch` canvas px apart, at least `least` and at most `most` screen px, so marks side by
+ * side never touch; canvas px a lane keeps off a box at least; canvas px an end slides along
+ * what it ends on, unless told.
  */
-export const LANE = { gap: 5, standoff: 4, end: 10 };
+export const LANE = { pitch: 16, least: 12, most: 24, standoff: 4, end: 10 };
 
 const EPS = 0.5;
 /** No limit to a lane's room. */
@@ -147,14 +148,13 @@ export function laneLines(lines: readonly LaneLine[], boxes: Iterable<Rect>): Ma
 		}
 		const mid = (Math.max(...lane.values()) || 0) / 2;
 		if (!mid) continue;
-		const step = Math.max(...s.map((p) => lines[p.line].width)) + LANE.gap;
 		const { room, shift } = roomOf(s, lane, mid, routes, lines, walls, sorted[s[0].axis]);
 		for (const [p, k] of lane) {
 			const n = k - mid + shift;
 			lanes[p.line][p.i] = {
 				nx: p.axis === 'x' ? n : 0,
 				ny: p.axis === 'y' ? n : 0,
-				step,
+				step: LANE.least,
 				room
 			};
 		}
@@ -362,6 +362,10 @@ function roomOf(
 	return { room: Math.max(0, room), shift };
 }
 
+/** Screen px between lanes `l` at `zoom`, as the lines' shader works it out. */
+export const stepAt = (l: Lane, zoom: number) =>
+	Math.min(Math.min(Math.max(LANE.pitch * zoom, l.step), LANE.most), l.room * zoom);
+
 /**
  * The shift of each corner of a laned line, in screen px at `zoom`: its pieces' lanes added,
  * as the lines' shader adds them (a right-angled corner meets both pieces' lanes).
@@ -369,7 +373,7 @@ function roomOf(
 export function laneShifts(lanes: readonly (Lane | undefined)[], zoom: number): Point[] {
 	const off = (l: Lane | undefined) => {
 		if (!l) return { x: 0, y: 0 };
-		const s = Math.min(l.step, l.room * zoom);
+		const s = stepAt(l, zoom);
 		return { x: l.nx * s, y: l.ny * s };
 	};
 	const out: Point[] = [];

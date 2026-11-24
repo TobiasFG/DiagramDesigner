@@ -3,14 +3,16 @@
 	import type { Point } from '#lib/landscape/route.ts';
 	import type { Token } from '#lib/theme/tokens.ts';
 
-	/** A line drawn on the WebGL layer, in canvas px; widths, dashes and heads in screen px. */
+	/** A line drawn on the WebGL layer, in canvas px; widths, dashes and marks in screen px. */
 	export interface GlLine {
 		id: string;
 		points: Point[];
 		width: number;
 		color: Token;
-		head?: 'arrow' | 'diamond';
-		/** Width of the halo in the canvas colour under it. */
+		/** A dot or diamond where it leaves; an arrow where it arrives. */
+		start?: 'dot' | 'diamond';
+		arrow?: boolean;
+		/** Width of the halo in the canvas colour under it and round its marks. */
 		halo?: number;
 		dash?: readonly [number, number];
 		/** Faded, as lines at rest are while something is looked at. */

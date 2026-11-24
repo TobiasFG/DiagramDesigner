@@ -36,8 +36,9 @@ drawn by one standard (`tool/src/lib/landscape/connections.ts`):
 - **Direction:** the arrow points at what the start depends on: a `ref` at its key, `from` at
   its source, a unit's reads and writes at the model, a call at the callee, an api at the unit
   handling it and at the models its bodies use, a send at the channel, a trigger's event
-  line at the channel's port, model or field it listens to. A held model (`model`) has a UML diamond at
-  the holder. So change impact follows arrows backwards.
+  line at the channel's port, model or field it listens to. Every line starts in a dot on what
+  depends and ends in an arrow on what it depends on; a held model (`model`) starts in a UML
+  diamond at the holder instead of the dot. So change impact follows arrows backwards.
 - **Style:** solid for structure (ref, holds, reads, writes, bodies), dashed for lineage,
   dotted for calls and handles, dashed for events. Grey at rest, the kind's colour when lit; widths stay the
   same on screen at any zoom.
@@ -45,9 +46,8 @@ drawn by one standard (`tool/src/lib/landscape/connections.ts`):
   ends are owned by different modules counts, whatever its kind, and so does a model stored in
   another module than its owner's (the store depends on the owner). Where a thing is owned
   decides, not where it is drawn. Each end is lifted to the child of the module both ends share,
-  and connections landing on one pair, one way, merge into one grey line between the two
-  modules' name bars (1, 2–9, 10+: thicker; hover for the count). So a line never crosses a
-  border, and two entities in one module are never joined at rest. Lines between top-level
+  and one grey line between the two modules' name bars says that one depends on the other,
+  however many connections make it (hover for them). So a line never crosses a border, and two entities in one module are never joined at rest. Lines between top-level
   modules always show; those inside a module once it covers a share of the view (25% by
   default, in Settings › Lines), and all of them in a focus.
 - **Hover a module** (or click to pin it): its incoming and outgoing Module Dependency Lines

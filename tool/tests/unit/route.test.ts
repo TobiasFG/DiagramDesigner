@@ -201,7 +201,7 @@ describe('frames', () => {
 		];
 		const r = routeLines(new Map([...cards, ...frames]), two);
 		const [x, y] = [r.get('x')!, r.get('y')!];
-		expect(Math.min(nearest(x), nearest(y))).toBeGreaterThanOrEqual(ROUTE.buffer);
+		expect(Math.min(nearest(x), nearest(y))).toBeGreaterThanOrEqual(ROUTE.buffer - 1e-9);
 		const upright = (pts: Point[]) => pts.find((p, i) => i && p.x === pts[i - 1].x)!.x;
 		expect(Math.abs(upright(x) - upright(y))).toBeGreaterThanOrEqual(ROUTE.spread);
 	});

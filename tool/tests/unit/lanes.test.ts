@@ -4,7 +4,9 @@ import type { Point, Rect } from '../../src/lib/landscape/route';
 
 const pts = (...xy: number[]): Point[] =>
 	Array.from({ length: xy.length / 2 }, (_, i) => ({ x: xy[2 * i], y: xy[2 * i + 1] }));
-const line = (id: string, ...xy: number[]): LaneLine => ({ id, points: pts(...xy), width: 2 });
+const line = (id: string, ...xy: number[]): LaneLine => ({ id, points: pts(...xy) });
+/** Screen px between lanes at `zoom` with room to spare. */
+const step = (zoom: number) => Math.min(Math.max(LANE.pitch * zoom, LANE.least), LANE.most);
 
 /** Whether two routes cross: a level piece of one through an upright piece of the other. */
 function cross(a: Point[], b: Point[]) {
@@ -72,14 +74,14 @@ describe('lanes', () => {
 			[]
 		);
 		const [up, down] = [out.get('up')!, out.get('down')!];
-		expect(up.lanes[0]).toMatchObject({ nx: 0, ny: -0.5, step: 2 + LANE.gap });
+		expect(up.lanes[0]).toMatchObject({ nx: 0, ny: -0.5, step: LANE.least });
 		expect(down.lanes[0]).toMatchObject({ nx: 0, ny: 0.5 });
 		// Their uprights share nothing: no lane.
 		expect(up.lanes[1]).toBeUndefined();
 		// Drawn: apart, both ends included, and not crossing.
 		const [a, b] = [lanePoints(up, 1), lanePoints(down, 1)];
-		expect(a[0]).toEqual({ x: 0, y: -(2 + LANE.gap) / 2 });
-		expect(b[0]).toEqual({ x: 0, y: (2 + LANE.gap) / 2 });
+		expect(a[0]).toEqual({ x: 0, y: -step(1) / 2 });
+		expect(b[0]).toEqual({ x: 0, y: step(1) / 2 });
 		expect(shared(a, b)).toBe(0);
 		expect(cross(a, b)).toBe(false);
 	});
@@ -140,7 +142,7 @@ describe('lanes', () => {
 			const y = lanePoints(out.get('a')!, zoom)[1].y;
 			expect(Math.abs(y)).toBeLessThanOrEqual(10 - LANE.standoff + 1e-9);
 			// On screen: a step apart until the room runs out.
-			expect(Math.abs(y * zoom)).toBeCloseTo(Math.min((2 + LANE.gap) / 2, 6 * zoom));
+			expect(Math.abs(y * zoom)).toBeCloseTo(Math.min(step(zoom) / 2, 6 * zoom));
 		}
 	});
 
@@ -149,7 +151,7 @@ describe('lanes', () => {
 		const boxes: Rect[] = [{ x0: 0, y0: -100, x1: 200, y1: -8 }];
 		// Each turns down at its own x: lanes 0 to 4. Their ends have room to slide.
 		const lines = [0, 1, 2, 3, 4].map((k) => ({
-			...line(`l${k}`, -50, 0, 250 + 10 * k, 0, 250 + 10 * k, 160),
+			...line(`l${k}`, -50, 0, 250 + 10 * k, 0, 250 + 10 * k, 400),
 			ends: [100, 100] as const
 		}));
 		const out = laneLines(lines, boxes);
@@ -159,7 +161,7 @@ describe('lanes', () => {
 			// Still a full step apart on screen.
 			const sorted = [...ys].sort((a, b) => a - b);
 			for (let i = 1; i < sorted.length; i++)
-				expect((sorted[i] - sorted[i - 1]) * zoom).toBeCloseTo(2 + LANE.gap);
+				expect((sorted[i] - sorted[i - 1]) * zoom).toBeCloseTo(step(zoom));
 		}
 	});
 

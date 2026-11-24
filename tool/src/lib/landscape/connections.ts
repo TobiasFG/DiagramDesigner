@@ -108,8 +108,8 @@ export type DependencyKind = LinkKind | 'stores';
 /**
  * A Module Dependency Line, drawn at rest: module `source` depends on module `target`. The two
  * are siblings, the children of the deepest module both sit in, so the line never crosses a
- * border. It merges every connection between anything owned inside the one and anything
- * owned inside the other, one line per pair and direction.
+ * border. One line per pair and direction: it is the dependency itself, which every
+ * connection from anything owned inside the one to anything owned inside the other makes.
  */
 export interface RestLine {
 	/** `<source>><target>`. */
@@ -118,12 +118,12 @@ export interface RestLine {
 	target: string;
 	/** The module both sit in; none for two top-level modules. */
 	parentId?: string;
-	/** The kinds of the connections merged, each once. */
+	/** The kinds of the connections that make it, each once. */
 	kinds: DependencyKind[];
-	/** How many connections it merges. */
+	/** How many connections make it. */
 	count: number;
 	/**
-	 * The innermost modules owning the two ends of each connection merged, each pair once:
+	 * The innermost modules owning the two ends of each connection that makes it, each pair once:
 	 * which modules inside `source` depend on which inside `target`.
 	 */
 	pairs: { from: string; to: string }[];

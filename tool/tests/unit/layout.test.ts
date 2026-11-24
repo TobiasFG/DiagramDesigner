@@ -190,7 +190,7 @@ describe('layout options', () => {
 
 	it('scales the room between systems and between boxes inside', () => {
 		const apart = (box: ReturnType<typeof at>) => box('b').absX - box('a').absX - box('a').width;
-		expect(apart(at({ spacing: 2 })) - apart(at({}))).toBeCloseTo(120);
+		expect(apart(at({ spacing: 2 })) - apart(at({}))).toBeCloseTo(160);
 		// The fixture's two erp modules share no connection, so ELK packs them, a gap apart.
 		const { model } = loadFixture();
 		for (const spacing of [1, 2]) {
@@ -199,7 +199,7 @@ describe('layout options', () => {
 			const [first, second] = i.absX < o.absX || i.absY < o.absY ? [i, o] : [o, i];
 			expect(
 				Math.max(second.absX - first.absX - first.width, second.absY - first.absY - first.height)
-			).toBeCloseTo(32 * spacing);
+			).toBeCloseTo(48 * spacing);
 		}
 	});
 });

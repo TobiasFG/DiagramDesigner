@@ -102,7 +102,8 @@ export function keyedGroup(group: RouteGroup, shareEnds: boolean, id?: string): 
 		boxes.set(id, { ...r, x0: r.x0 - x, y0: r.y0 - y, x1: r.x1 - x, y1: r.y1 - y });
 	const end = (e: RouteEnd): RouteEnd => ({ ...e, x0: e.x0 - x, x1: e.x1 - x, y: e.y - y });
 	const lines = group.lines.map((l) => ({ ...l, s: end(l.s), t: end(l.t) }));
-	return { ...group, x, y, id, key: `${boxesKey(boxes)}|${routeKey(lines, shareEnds)}` };
+	const key = `${boxesKey(boxes)}|${group.spread ?? ''}|${routeKey(lines, shareEnds)}`;
+	return { ...group, x, y, id, key };
 }
 
 /** `routes` moved by `dx`, `dy`. */
@@ -528,7 +529,9 @@ export class RouteClient {
 			ver: this.cur.ver,
 			lines: job.lines,
 			shareEnds: job.shareEnds,
-			groups: job.group && [{ boxes: job.group.boxes, lines: job.group.lines }]
+			groups: job.group && [
+				{ boxes: job.group.boxes, lines: job.group.lines, spread: job.group.spread }
+			]
 		});
 	}
 

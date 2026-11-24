@@ -1028,7 +1028,7 @@
 
 	// Lines at rest and lit lines are routed apart, so a hover never moves the lines at rest.
 	// Each is drawn once routed, never first along a makeshift path.
-	const restWant = $derived(restGroups(boxes, boxById, rails, rest));
+	const restWant = $derived(restGroups(boxes, boxById, rails, rest, laid.pitch));
 	/** The lines at rest routed so far, drawn as their groups come in. */
 	const restRoutes = $derived.by(() => {
 		void routedIn;
@@ -1181,13 +1181,10 @@
 	const restOf = (l: RestLine) => {
 		const [s, t] = [boxById.get(l.source)!, boxById.get(l.target)!];
 		const [a, b] = [headEnd(s), headEnd(t)];
-		const w = l.count >= 10 ? 3 : l.count > 1 ? 2 : 1;
 		return {
 			l,
-			w,
 			id: l.id,
 			points: restRoutes.routes.get(l.id) ?? straight(a, b, sides(a, b)),
-			width: 0.5 + w,
 			ends: [headRoom(s), headRoom(t)] as const
 		};
 	};
@@ -1218,23 +1215,25 @@
 		return lines.map((x) => ({ ...x, ...laned.get(x.id)! }));
 	});
 	/**
-	 * Module Dependency Lines: grey at rest, on the two modules' name bars, wider the more they
-	 * merge, under the boxes they leave and over the box they share. Looking at a module lights
-	 * its lines in the selection colour, leaves those inside it as they are and tones down the
-	 * rest; looking at anything else tones them all down.
+	 * Module Dependency Lines: grey at rest, one width, on the two modules' name bars, from a dot
+	 * on the module that depends to an arrow on the one it depends on, under the boxes they leave
+	 * and over the box they share. Looking at a module lights its lines in the selection colour,
+	 * leaves those inside it as they are and tones down the rest; looking at anything else tones
+	 * them all down.
 	 */
 	const glRest = $derived.by((): GlLine[] =>
-		[...restLaid, ...restRevealed].map(({ l, w, points, lanes }) => {
+		[...restLaid, ...restRevealed].map(({ l, points, lanes }) => {
 			const on = !!modLook?.lit.has(l.id);
 			const other = otherBranch.has(l.id);
 			return {
 				id: `rest:${l.id}`,
 				points,
 				lanes,
-				width: on ? Math.max(0.5 + w, 2.5) : 0.5 + w,
-				halo: 4.5 + w,
+				width: on ? 2.5 : 1.5,
+				halo: 5.5,
 				color: on ? 'selection' : 'edge-rest',
-				head: 'arrow',
+				start: 'dot',
+				arrow: true,
 				...(other && { dash: [5, 4] as const }),
 				dim: other || (!!focus && !on && !modLook?.inside.has(l.id)),
 				title: `${other ? "In the flag's other state only. " : ''}${l.count} connection${l.count > 1 ? 's' : ''}: ${l.kinds.map((k) => KIND_NAME[k]).join(', ')}`,
@@ -1250,7 +1249,7 @@
 	const glLit = $derived.by((): GlLine[] => {
 		if (!(litRoutes || unrouted)) return [];
 		const laned = laneLines(
-			lit.map((l) => ({ id: l.id, points: litPoints(l) ?? straight(l.s, l.t, l.sides), width: 2 })),
+			lit.map((l) => ({ id: l.id, points: litPoints(l) ?? straight(l.s, l.t, l.sides) })),
 			obstacles.values()
 		);
 		return lit.map((l) => ({
@@ -1258,7 +1257,8 @@
 			...laned.get(l.id)!,
 			width: 2,
 			color: `link-${LINK_TOKEN[l.kind]}` as GlLine['color'],
-			head: l.kind === 'model' ? 'diamond' : 'arrow',
+			start: l.kind === 'model' ? 'diamond' : 'dot',
+			arrow: true,
 			dash:
 				l.kind === 'from'
 					? ([5, 4] as const)
@@ -2995,14 +2995,16 @@
 				>
 					<svg class="ex" viewBox="0 0 30 10" style:--c="var(--sdv-link-{k.token})"
 						><path
-							d={k.diamond ? 'M10 5h19' : 'M1 5h21'}
+							d={k.diamond ? 'M10 5h12' : 'M4 5h18'}
 							stroke="var(--c)"
 							stroke-width="1.6"
 							stroke-dasharray={k.dash}
 						/><path
-							d={k.diamond ? 'M1 5 5.5 2 10 5 5.5 8Z' : 'M29 5 22 1.5v7Z'}
+							d={k.diamond
+								? 'M1 5 5.5 2 10 5 5.5 8Z'
+								: 'M1 5a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0-5.2 0Z'}
 							fill="var(--c)"
-						/></svg
+						/><path d="M29 5 22 1.5v7Z" fill="var(--c)" /></svg
 					>{k.label}
 				</button>
 			{/each}
