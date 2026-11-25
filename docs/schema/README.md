@@ -46,7 +46,7 @@ drawn by one standard (`tool/src/lib/landscape/connections.ts`):
   ends are owned by different modules counts, whatever its kind, and so does a model stored in
   another module than its owner's (the store depends on the owner). Where a thing is owned
   decides, not where it is drawn. Each end is lifted to the child of the module both ends share,
-  and one grey line between the two modules' name bars says that one depends on the other,
+  and one grey line between the two modules, routed with the layout, says that one depends on the other,
   however many connections make it (hover for them). So a line never crosses a border, and two entities in one module are never joined at rest. Lines between top-level
   modules always show; those inside a module once it covers a share of the view (25% by
   default, in Settings › Lines), and all of them in a focus.

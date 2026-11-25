@@ -1,12 +1,4 @@
-import {
-	loadRouter,
-	routeGroups,
-	routeLines,
-	type Point,
-	type Rect,
-	type RouteGroup,
-	type RouteLine
-} from './route.ts';
+import { loadRouter, routeLines, type Point, type Rect, type RouteLine } from './route.ts';
 
 /**
  * Routing in a worker (route-worker.ts), so it never holds up the page: what the page asks
@@ -21,9 +13,6 @@ export type ToRouter =
 			id: number;
 			ver: number;
 			lines: RouteLine[];
-			shareEnds: boolean;
-			/** Routed group by group among their own boxes instead of `lines` among all. */
-			groups?: RouteGroup[];
 	  };
 
 export type FromRouter =
@@ -62,12 +51,7 @@ export function routeService(reply: (m: FromRouter) => void) {
 			const t0 = performance.now();
 			const out = { type: 'routed' as const, id: m.id, ver: m.ver };
 			try {
-				// Groups carry their own boxes, so they route whatever boxes were sent since.
-				const routes = m.groups
-					? routeGroups(m.groups, m.shareEnds)
-					: m.ver !== ver
-						? undefined
-						: routeLines(boxes, m.lines, m.shareEnds);
+				const routes = m.ver !== ver ? undefined : routeLines(boxes, m.lines);
 				reply({ ...out, routes, ms: performance.now() - t0 });
 			} catch (e) {
 				reply({ ...out, ms: performance.now() - t0, error: String(e) });

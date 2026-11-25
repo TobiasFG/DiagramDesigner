@@ -106,12 +106,9 @@
 		type Side
 	} from '#lib/landscape/route.ts';
 	import { RouteClient, type RouteAhead, type RoutePort } from '#lib/landscape/route-client.ts';
-	import { routeStore } from '#lib/landscape/route-store.ts';
-	import { LANE, laneLines } from '#lib/landscape/lanes.ts';
-	import { RoutingClock, type RoutingRun } from '#lib/landscape/routing-clock.ts';
-	import { headEnd, railsOf, restGroups, sides } from '#lib/landscape/scene.ts';
+	import { laneLines } from '#lib/landscape/lanes.ts';
+	import { headEnd, railsOf, sides } from '#lib/landscape/scene.ts';
 	import { design } from '#lib/client/store.svelte.ts';
-	import RoutingProgress from './RoutingProgress.svelte';
 	import RouteWorker from '#lib/landscape/route-worker.ts?worker';
 	import wasmUrl from 'libavoid-js/dist/libavoid.wasm?url';
 	import { untrack } from 'svelte';
@@ -262,7 +259,7 @@
 	const model = $derived(
 		fresh ? (wantFocused?.model ?? changes.shown) : (shown?.model ?? changes.shown)
 	);
-	const laid = $derived<Landscape>(shown?.laid ?? { boxes: [], lines: [] });
+	const laid = $derived<Landscape>(shown?.laid ?? { boxes: [], lines: [], routes: new Map() });
 	const boxes = $derived(laid.boxes);
 	// However large the landscape, it can be zoomed out until all of it is in view, with room
 	// to spare.
@@ -560,16 +557,13 @@
 	}
 
 	// ------------------------------------------------------------ routing
-	// In workers, one for what is wanted now and one routing ahead, so routing never holds up
-	// input or frames (see route-client.ts).
-	// The lines at rest are kept in the browser too, so opening the landscape again draws them
-	// at once.
+	// Lit lines are routed in workers, one for what is wanted now and one routing ahead, so
+	// routing never holds up input or frames (see route-client.ts). Lines at rest come routed
+	// with the layout.
 	const router = new RouteClient(
 		new RouteWorker() as unknown as RoutePort,
 		new RouteWorker() as unknown as RoutePort,
-		wasmUrl,
-		// Lines at rest are kept by group, a few landscapes' worth.
-		typeof localStorage === 'undefined' ? undefined : routeStore(localStorage, 512)
+		wasmUrl
 	);
 	/** Routing failed: lines run straight between their ends instead. */
 	let unrouted = $state(false);
@@ -1026,44 +1020,6 @@
 		lookedModule ? moduleLook(boxes, boxById, rest, lookedModule) : undefined
 	);
 
-	// Lines at rest and lit lines are routed apart, so a hover never moves the lines at rest.
-	// Each is drawn once routed, never first along a makeshift path.
-	const restWant = $derived(restGroups(boxes, boxById, rails, rest, laid.pitch));
-	/** The lines at rest routed so far, drawn as their groups come in. */
-	const restRoutes = $derived.by(() => {
-		void routedIn;
-		return router.groupRoutes(restWant);
-	});
-	$effect(() => router.wantGroups(restWant, true, routeCame));
-
-	// While the lines at rest are routed, a bar says how long is left, judged by how long they
-	// took last time for this landscape and focus (see RoutingProgress, routing-clock.ts). The
-	// effect only starts and stops the clock; the bar ticks on its own.
-	const routing = $derived(!restRoutes.done && !unrouted);
-	const tookKey = $derived(
-		JSON.stringify([design.landscape?.path ?? design.landscape?.name ?? '', focusKey ?? ''])
-	);
-	const clock = new RoutingClock(typeof localStorage === 'undefined' ? undefined : localStorage);
-	/** The routing of the lines at rest going on, if any. */
-	let routingRun = $state.raw<RoutingRun>();
-	$effect(() => {
-		if (!routing) return;
-		routingRun = clock.start(
-			untrack(() => tookKey),
-			performance.now()
-		);
-		return () => {
-			// Only a routing that came to an end is a measure, not one cut short by leaving.
-			clock.stop(
-				performance.now(),
-				untrack(() => !unrouted && restRoutes.done)
-			);
-			routingRun = undefined;
-		};
-	});
-	/** Lines at rest not routed yet. */
-	const unroutedCount = $derived(rest.filter((l) => !restRoutes.routes.has(l.id)).length);
-
 	/**
 	 * Flow Lines (lit lines) as the router takes them: each its own route, row to row. A flow is
 	 * not a module dependency, so it never runs along a Module Dependency Line.
@@ -1091,7 +1047,7 @@
 	});
 	$effect(() => {
 		const { key, lines } = litWant;
-		router.want(obstacles, key, lines, false, 'lit', routeCame);
+		router.want(obstacles, key, lines, routeCame);
 	});
 
 	/** The view's centre on the canvas. */
@@ -1157,13 +1113,6 @@
 		return [a, { x: mx, y: a.y }, { x: mx, y: b.y }, b];
 	}
 	/**
-	 * How far a line's end may slide along a box's side to its lane, in canvas px: within a
-	 * card's name bar, or the side of any other box (where lines at rest end), clear of its
-	 * corners.
-	 */
-	const headRoom = (b: LandscapeBox) =>
-		(b.view || cardRows(b) ? TABLE.head / 2 : b.height / 2) - LANE.standoff;
-	/**
 	 * The modules whose inside lines at rest are drawn: those covering the share of the view set
 	 * in the settings, or all of them in a focus, which is small. Kept as a key, so a pan or zoom
 	 * redraws the lines only when a module crosses the share.
@@ -1177,58 +1126,41 @@
 		return [...restShownIn(boxById, inside, cam, settings.restShare)].join('\n');
 	});
 	const restShown = $derived(new Set(restShownKey.split('\n')));
-	/** Each line at rest once routed, never first along a makeshift path, before its lanes. */
+	/**
+	 * A line at rest along the route ELK gave it with the layout (see layout.ts); straight between
+	 * its boxes in the rare case it has none, as for a line only a flag's other state makes.
+	 */
 	const restOf = (l: RestLine) => {
-		const [s, t] = [boxById.get(l.source)!, boxById.get(l.target)!];
-		const [a, b] = [headEnd(s), headEnd(t)];
-		return {
-			l,
-			id: l.id,
-			points: restRoutes.routes.get(l.id) ?? straight(a, b, sides(a, b)),
-			ends: [headRoom(s), headRoom(t)] as const
-		};
+		const [a, b] = [headEnd(boxById.get(l.source)!), headEnd(boxById.get(l.target)!)];
+		return { l, points: laid.routes.get(l.id) ?? straight(a, b, sides(a, b)) };
 	};
-	const routedRest = (l: RestLine) => unrouted || restRoutes.routes.has(l.id);
 	/**
 	 * Lines at rest drawn: between top-level modules always, inside a module once it fills
-	 * enough of the view (see `restShown`); in their lanes where they share a stretch (see
-	 * lanes.ts), so those leaving a box together run beside each other.
+	 * enough of the view (see `restShown`).
 	 */
-	const restLaid = $derived.by(() => {
-		const lines = rest
-			.filter((l) => routedRest(l) && (!l.parentId || restShown.has(l.parentId)))
-			.map(restOf);
-		const laned = laneLines(lines, obstacles.values());
-		return lines.map((x) => ({ ...x, ...laned.get(x.id)! }));
-	});
-	/**
-	 * A looked at module's lines the share hides, shown while it is looked at, laned among
-	 * those drawn, which keep their own lanes, so a hover moves no line at rest.
-	 */
+	const restLaid = $derived(
+		rest.filter((l) => !l.parentId || restShown.has(l.parentId)).map(restOf)
+	);
+	/** A looked at module's lines the share hides, shown while it is looked at. */
 	const restRevealed = $derived.by(() => {
 		if (!modLook) return [];
-		const drawn = new Set(restLaid.map((x) => x.id));
-		const extra = rest.filter((l) => modLook.lit.has(l.id) && !drawn.has(l.id) && routedRest(l));
-		if (!extra.length) return [];
-		const lines = extra.map(restOf);
-		const laned = laneLines([...restLaid, ...lines], obstacles.values());
-		return lines.map((x) => ({ ...x, ...laned.get(x.id)! }));
+		const drawn = new Set(restLaid.map((x) => x.l.id));
+		return rest.filter((l) => modLook.lit.has(l.id) && !drawn.has(l.id)).map(restOf);
 	});
 	/**
-	 * Module Dependency Lines: grey at rest, one width, on the two modules' name bars, from a dot
-	 * on the module that depends to an arrow on the one it depends on, under the boxes they leave
-	 * and over the box they share. Looking at a module lights its lines in the selection colour,
+	 * Module Dependency Lines: grey at rest, one width, along ELK's routes, from a dot on the
+	 * module that depends to an arrow on the one it depends on, under the boxes they leave and
+	 * over the box they share. Looking at a module lights its lines in the selection colour,
 	 * leaves those inside it as they are and tones down the rest; looking at anything else tones
 	 * them all down.
 	 */
 	const glRest = $derived.by((): GlLine[] =>
-		[...restLaid, ...restRevealed].map(({ l, points, lanes }) => {
+		[...restLaid, ...restRevealed].map(({ l, points }) => {
 			const on = !!modLook?.lit.has(l.id);
 			const other = otherBranch.has(l.id);
 			return {
 				id: `rest:${l.id}`,
 				points,
-				lanes,
 				width: on ? 2.5 : 1.5,
 				halo: 5.5,
 				color: on ? 'selection' : 'edge-rest',
@@ -3585,13 +3517,6 @@
 	{/if}
 	{#if !shown}
 		<p class="laying" role="status">Laying out the landscape…</p>
-	{/if}
-	{#if routingRun}
-		<RoutingProgress
-			count={unroutedCount}
-			since={routingRun.since}
-			expected={routingRun.expected}
-		/>
 	{/if}
 	{#if search.open}
 		<SearchPalette onpick={pick} onfocus={focusHit} onclose={() => (search.open = false)} />

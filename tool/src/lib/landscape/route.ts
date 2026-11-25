@@ -61,26 +61,6 @@ export type Point = { x: number; y: number };
 export const ROUTE = { buffer: 8, spread: LANE.pitch, share: 0.01, room: 64 };
 
 /**
- * Where the lines at rest among a box's children are first seen: on a screen `width` by
- * `height`, once the box covers `share` of it (the Settings' default), or for the top-level
- * boxes, with the whole landscape fitted, `pad` of it spare.
- */
-const SEEN = { width: 1440, height: 900, share: 0.25, pad: 0.1 };
-
-/**
- * Canvas px between the lines at rest among the children of a box `width` by `height` (`top`:
- * among the top-level boxes, the landscape that size): `spread`, or more where they are first
- * seen zoomed out, so they are `LANE.least` px apart on screen there. The layout leaves the
- * room and the router spaces them so.
- */
-export function pitchOf(width: number, height: number, top = false): number {
-	const zoom = top
-		? Math.min(SEEN.width / width, SEEN.height / height) / (1 + SEEN.pad)
-		: Math.sqrt((SEEN.share * SEEN.width * SEEN.height) / (width * height));
-	return Math.max(ROUTE.spread, Math.ceil(LANE.least / zoom));
-}
-
-/**
  * The room lines keep clear of a box `width` by `height`: `share` of its shorter side, at least
  * `buffer`, in whole px. A card keeps `buffer`; a large system keeps tens of px, so its lines
  * stand off its border at the zoom it is seen at. The layout leaves that much more room round
@@ -147,19 +127,13 @@ export function boxesNear(
 /**
  * Each line's corners, start and end included, by line id. Lines round `boxes` by id (those
  * near them: see `boxesNear`), and keep off the edges of those that are frames, each box's
- * `clear` away, and `spread` apart. With `shareEnds`, lines leaving one end run as one line
- * from it, else they spread apart there too.
+ * `clear` away, and `ROUTE.spread` apart, at their ends too.
  */
-export function routeLines(
-	boxes: Map<string, Rect>,
-	lines: RouteLine[],
-	shareEnds = false,
-	spread = ROUTE.spread
-): Map<string, Point[]> {
+export function routeLines(boxes: Map<string, Rect>, lines: RouteLine[]): Map<string, Point[]> {
 	const A = avoid;
 	const router = new A.Router(A.OrthogonalRouting);
 	router.setRoutingParameter(A.shapeBufferDistance, ROUTE.buffer);
-	router.setRoutingParameter(A.idealNudgingDistance, spread);
+	router.setRoutingParameter(A.idealNudgingDistance, ROUTE.spread);
 	// A bend costs as much as this many px of line, so lines take few.
 	router.setRoutingParameter(A.segmentPenalty, 50);
 	// A line's end stays on its row: nudging the segments at a box slides ends along its side,
@@ -168,7 +142,7 @@ export function routeLines(
 	router.setRoutingOption(A.nudgeOrthogonalTouchingColinearSegments, true);
 	// No crossing penalty: libavoid calls it experimental, and it doubles the time lines take
 	// together. Nudging still orders lines in a shared channel so they cross no more than needed.
-	router.setRoutingOption(A.nudgeSharedPathsWithCommonEndPoint, !shareEnds);
+	router.setRoutingOption(A.nudgeSharedPathsWithCommonEndPoint, true);
 	// No unifying pass before nudging: it only slides segments within their channels (lines
 	// keep their bends and length), but costs more than all else together, and grows so fast
 	// with the lines in a channel that a group of 100 lines took minutes and 200 never ended.
@@ -240,7 +214,7 @@ export function routeLines(
 	const ends = new Set(lines.map((l) => `${at(l.s)}>${at(l.t)}`));
 	const conns = lines.map((l) => {
 		const pair = ends.has(`${at(l.t)}>${at(l.s)}`);
-		const dy = pair ? (at(l.s) < at(l.t) ? -1 : 1) * spread : 0;
+		const dy = pair ? (at(l.s) < at(l.t) ? -1 : 1) * ROUTE.spread : 0;
 		const s = { ...l.s, y: l.s.y + dy };
 		const t = { ...l.t, y: l.t.y + dy };
 		return [l, new A.ConnRef(router, end(s), end(t))] as const;
@@ -459,32 +433,12 @@ export function clearFrames(
 	return out;
 }
 
-/** Lines routed among `boxes` only, `spread` apart (see `pitchOf`). */
-export interface RouteGroup {
-	boxes: Map<string, Rect>;
-	lines: RouteLine[];
-	spread?: number;
-}
-
-/**
- * Each group's lines routed among its own boxes (see `routeLines`), all by line id. Lines that
- * can only run among a few boxes cost far less routed apart: what libavoid costs grows with
- * every box and every line routed together.
- */
-export function routeGroups(groups: RouteGroup[], shareEnds = false): Map<string, Point[]> {
-	const out = new Map<string, Point[]>();
-	for (const g of groups)
-		for (const [id, pts] of routeLines(g.boxes, g.lines, shareEnds, g.spread)) out.set(id, pts);
-	return out;
-}
-
 /**
  * What a set of lines is known by when its routes are kept: the lines themselves, ends and all,
  * so lines ending elsewhere (a card folded or expanded, a new layout) are a new set. '' for no
  * lines, which need no routing.
  */
-export const routeKey = (lines: RouteLine[], shareEnds = false) =>
-	lines.length ? JSON.stringify([shareEnds, lines]) : '';
+export const routeKey = (lines: RouteLine[]) => (lines.length ? JSON.stringify(lines) : '');
 
 /** An SVG path through a route's corners. */
 export const routePath = (pts: Point[]) =>

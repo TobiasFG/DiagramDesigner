@@ -3,10 +3,10 @@ import type { Element, ModelField, ModelIndex } from '../model/schema';
 import { GLYPH, textWidth, truncate, truncateStart } from '../render/text';
 import { triggerGlyph, triggerWords } from '../model/message';
 import { railGroups, railOf } from './apis';
-import { edgeKey, edgesOf, type Edge } from './connections';
+import { edgeKey, edgesOf, moduleLines, type Edge } from './connections';
 import type { ElkNode } from 'elkjs/lib/elk-api';
 import { elkLayout } from './elk';
-import { clearanceOf, pitchOf, ROUTE } from './route';
+import { clearanceOf, ROUTE, type Point } from './route';
 
 /** A model is drawn as a class where it is owned, as a table where it is stored. */
 export type ModelView = 'class' | 'table';
@@ -53,8 +53,6 @@ export interface LandscapeBox {
 	 * layout leaves that much more room round it, and inside it if it holds boxes.
 	 */
 	clear: number;
-	/** Canvas px between the lines at rest among its children, when more than `ROUTE.spread`. */
-	pitch?: number;
 }
 
 interface Size {
@@ -83,11 +81,6 @@ export const groupFont = (width: number, height: number) => Math.min(width * 0.0
 
 /** The ELK options a viewer can change in Settings. */
 export interface LayoutOptions {
-	/**
-	 * How siblings are placed: in layers, what is depended on first (`direction`, `placement`),
-	 * or by stress, connected boxes pulled close in any direction.
-	 */
-	method: 'layered' | 'stress';
 	/** Which way connections run: what is depended on comes first. */
 	direction: 'RIGHT' | 'DOWN' | 'LEFT' | 'UP';
 	/**
@@ -107,7 +100,6 @@ export interface LayoutOptions {
 }
 
 export const DEFAULT_LAYOUT: LayoutOptions = {
-	method: 'layered',
 	direction: 'RIGHT',
 	spacing: 1,
 	placement: 'NETWORK_SIMPLEX',
@@ -683,12 +675,25 @@ const leafWidth = (name: string) =>
 /** A block of siblings: where each goes, relative to the block, by box id. */
 interface Block extends Size {
 	at: Map<string, { x: number; y: number }>;
+	/** The routes of the Module Dependency Lines among them, from the start's border. */
+	routes: Map<string, Point[]>;
 }
 
 /**
- * ELK's spacing at one level: `gap` between boxes, and lines `pitch` apart as the canvas routes
- * them (see route.ts), so ELK keeps room between boxes for as many lines as run there: `gap`,
- * plus `pitch` a line, plus the room the canvas keeps off either box.
+ * Lines among siblings are this share of the largest one's shorter side apart, so they read
+ * once the boxes they join do, at whatever zoom that is.
+ */
+const LINE_SHARE = 0.05;
+
+/** A route's end `p`, next to `q`, on a box grown `m` all round about `c`, moved onto the box. */
+function inward(p: Point, q: Point, m: number, c: Point) {
+	if (p.y === q.y) p.x += p.x < c.x ? m : -m;
+	else p.y += p.y < c.y ? m : -m;
+}
+
+/**
+ * ELK's spacing at one level: `gap` between boxes, lines `pitch` apart and half a gap off the
+ * boxes, so the room between two boxes grows by a pitch for each line routed through it.
  */
 const spacing = (gap: number, pitch: number) => ({
 	'elk.spacing.nodeNode': String(gap),
@@ -697,71 +702,10 @@ const spacing = (gap: number, pitch: number) => ({
 	// No more than `gap` within a layer: ELK's compaction fails on lines kept further apart there
 	// than boxes ("Invalid hitboxes for scanline constraint calculation").
 	'elk.spacing.edgeEdge': String(Math.min(pitch, gap)),
-	'elk.spacing.edgeNode': String(gap / 2 + ROUTE.buffer),
+	'elk.spacing.edgeNode': String(gap / 2),
 	'elk.layered.spacing.edgeEdgeBetweenLayers': String(pitch),
-	'elk.layered.spacing.edgeNodeBetweenLayers': String((gap + pitch) / 2 + ROUTE.buffer)
+	'elk.layered.spacing.edgeNodeBetweenLayers': String(gap / 2)
 });
-
-type Placed = { id: string; x: number; y: number; width: number; height: number };
-
-/** Whether two boxes come closer than `g`. */
-const near = (a: Placed, b: Placed, g: number) =>
-	a.x < b.x + b.width + g &&
-	b.x < a.x + a.width + g &&
-	a.y < b.y + b.height + g &&
-	b.y < a.y + a.height + g;
-
-/**
- * Boxes spread out from their middle, the arrangement kept, just until none comes closer than `g`
- * to another: the smallest such stretch, found by halving.
- */
-function spread(boxes: Placed[], g: number): Placed[] {
-	const mid = (b: Placed) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
-	const at = (k: number) =>
-		boxes.map((b) => ({ ...b, x: mid(b).x * k - b.width / 2, y: mid(b).y * k - b.height / 2 }));
-	const clear = (bs: Placed[]) => bs.every((a, i) => bs.every((b, j) => j <= i || !near(a, b, g)));
-	let [lo, hi] = [0, 1];
-	while (!clear(at(hi))) [lo, hi] = [hi, hi * 2];
-	for (let i = 0; i < 20; i++) {
-		const k = (lo + hi) / 2;
-		if (clear(at(k))) hi = k;
-		else lo = k;
-	}
-	return at(hi);
-}
-
-/**
- * Boxes pulled straight in toward the middle of them all, so the slack between them goes and the
- * arrangement keeps its overall shape, round if it was round. The boxes nearest the middle move
- * first, each as far along its way in as it can without coming closer than `g` to another box;
- * a few rounds let the outer boxes follow the inner ones in.
- */
-function compact(boxes: Placed[], g: number): Placed[] {
-	const bs = boxes.map((b) => ({ ...b }));
-	const mid = {
-		x: (Math.min(...bs.map((b) => b.x)) + Math.max(...bs.map((b) => b.x + b.width))) / 2,
-		y: (Math.min(...bs.map((b) => b.y)) + Math.max(...bs.map((b) => b.y + b.height))) / 2
-	};
-	const off = (b: Placed) => ({ x: mid.x - b.x - b.width / 2, y: mid.y - b.y - b.height / 2 });
-	const far = (b: Placed) => Math.hypot(off(b).x, off(b).y);
-	for (let round = 0; round < 4; round++)
-		for (const b of [...bs].sort((p, q) => far(p) - far(q) || idOrder(p, q))) {
-			const { x, y } = off(b);
-			const moved = (t: number) => ({ ...b, x: b.x + x * t, y: b.y + y * t });
-			const clear = (t: number) => bs.every((o) => o === b || !near(moved(t), o, g));
-			// Already clear where it is; find how far in it can go, halving.
-			let [lo, hi] = [0, 1];
-			if (clear(1)) lo = 1;
-			else
-				for (let i = 0; i < 12; i++) {
-					const t = (lo + hi) / 2;
-					if (clear(t)) lo = t;
-					else hi = t;
-				}
-			Object.assign(b, moved(lo));
-		}
-	return bs;
-}
 
 /** By id, so the order of the files changes nothing. */
 const idOrder = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -788,16 +732,20 @@ export interface LaidLine {
 export interface Landscape {
 	boxes: LandscapeBox[];
 	lines: LaidLine[];
-	/** Canvas px between the lines at rest among the top-level boxes, when more than `ROUTE.spread`. */
-	pitch?: number;
+	/**
+	 * The Module Dependency Lines' routes by line id (see connections.ts `moduleLines`), as ELK
+	 * routed them while placing the boxes: corners from the start's border to the end's.
+	 */
+	routes: Map<string, Point[]>;
 }
 
 /**
  * Lays out the element tree by ELK's layered algorithm, with every connection as a line between
  * siblings (see `LaidLine`): what is depended on before what depends on it (in
  * `opts.direction`), crossings few, the more connections a line merges the shorter and
- * straighter. The lines only place the boxes; the canvas routes every line it draws itself
- * (see route.ts), so lines at rest and lit lines follow the same rules. Siblings no line joins
+ * straighter. ELK routes the Module Dependency Lines as it places the boxes, and the canvas
+ * draws its routes (`routes`), so the room between boxes is the room their lines take; lit
+ * lines are routed on the canvas (see route.ts). Siblings no line joins
  * are laid out apart and packed. Each box is laid out inside first, then among its siblings as
  * one box of its size. Leaves are fitted to their content, groups round their
  * children; each box keeps room right of it for its rail. Boxes are taken in id order, so the
@@ -816,6 +764,7 @@ export function layoutLandscape(
 	const gap = 48 * opts.spacing;
 	const systemGap = 160 * opts.spacing;
 	const out: LandscapeBox[] = [];
+	const routes = new Map<string, Point[]>();
 	const sizes = new Map<string, Size>();
 	const cards = new Map<string, { cols: TableColumn[]; fields: ModelField[] }>();
 	const logicCards = new Map<string, { cols: TableColumn[]; rows: LogicRow[] }>();
@@ -994,6 +943,11 @@ export function layoutLandscape(
 		const block = blocks.get(parent?.id ?? '')!;
 		const x0 = area.x + (area.width - block.width) / 2;
 		const y0 = area.y + (area.height - block.height) / 2;
+		for (const [id, pts] of block.routes)
+			routes.set(
+				id,
+				pts.map((p) => ({ x: x0 + p.x, y: y0 + p.y }))
+			);
 		for (const item of items) {
 			const slot = { ...block.at.get(item.id)!, ...sizes.get(item.id)! };
 			const absX = x0 + slot.x;
@@ -1019,8 +973,7 @@ export function layoutLandscape(
 				triggers: item.card === 'triggers' ? logicCards.get(item.id) : undefined,
 				channel: item.card === 'channel' ? logicCards.get(item.id) : undefined,
 				...(item.view === 'table' && storedAsFile(model, item.el) ? { files: true as const } : {}),
-				clear: clear.get(item.id) ?? ROUTE.buffer,
-				pitch: pitches.get(item.id)
+				clear: clear.get(item.id) ?? ROUTE.buffer
 			};
 			out.push(box);
 			const m = extra(item.id);
@@ -1038,7 +991,7 @@ export function layoutLandscape(
 		}
 	}
 
-	if (!roots.length) return { boxes: out, lines: [] };
+	if (!roots.length) return { boxes: out, lines: [], routes: new Map() };
 	const items = new Map<string, Item>();
 	for (const kids of kidsBy.values()) for (const k of kids) items.set(k.id, k);
 	for (const r of roots) items.set(r.id, r);
@@ -1066,12 +1019,33 @@ export function layoutLandscape(
 			l.edges.push(e);
 		}
 	const lines = [...laid.values()].sort(idOrder);
+	// The Module Dependency Lines, drawn at rest: ELK routes them as it places the boxes, among
+	// the lines that place them, so the room between boxes is the room their lines take.
+	const drawn = moduleLines(model, edgesOf(model), (id) => items.has(id));
+	const drawnIds = new Set(drawn.map((l) => l.id));
+	const ties = new Map<string, LaidLine & { weight: number }>(
+		lines.map((l) => [l.id, { ...l, weight: l.edges.length }])
+	);
+	for (const l of drawn) {
+		const tie = ties.get(l.id);
+		if (tie) tie.weight = Math.max(tie.weight, l.count);
+		else
+			ties.set(l.id, {
+				id: l.id,
+				source: l.source,
+				target: l.target,
+				parentId: l.parentId,
+				edges: [],
+				weight: l.count
+			});
+	}
+	const tied = [...ties.values()].sort(idOrder);
 
 	/** Siblings in `parent` (none for the top level) in groups joined by lines. */
 	const components = (parent: string | undefined, kids: Item[]) => {
 		const up = new Map(kids.map((k) => [k.id, k.id]));
 		const find = (id: string): string => (up.get(id) === id ? id : find(up.get(id)!));
-		for (const l of lines) if (l.parentId === parent) up.set(find(l.source), find(l.target));
+		for (const l of tied) if (l.parentId === parent) up.set(find(l.source), find(l.target));
 		const groups = new Map<string, Item[]>();
 		for (const k of kids) groups.set(find(k.id), [...(groups.get(find(k.id)) ?? []), k]);
 		return [...groups.values()];
@@ -1082,15 +1056,21 @@ export function layoutLandscape(
 		const area = parts.reduce((sum, b) => sum + (b.width + g) * (b.height + g), 0);
 		const rowWidth = Math.max(...parts.map((b) => b.width), Math.sqrt(area * opts.aspect));
 		const at = new Map<string, { x: number; y: number }>();
+		const routes = new Map<string, Point[]>();
 		let [x, y, rowHeight, width] = [0, 0, 0, 0];
 		for (const b of parts) {
 			if (x > 0 && x + b.width > rowWidth) [x, y, rowHeight] = [0, y + rowHeight + g, 0];
 			for (const [id, p] of b.at) at.set(id, { x: x + p.x, y: y + p.y });
+			for (const [id, pts] of b.routes)
+				routes.set(
+					id,
+					pts.map((p) => ({ x: x + p.x, y: y + p.y }))
+				);
 			width = Math.max(width, x + b.width);
 			x += b.width + g;
 			rowHeight = Math.max(rowHeight, b.height);
 		}
-		return { width, height: y + rowHeight, at };
+		return { width, height: y + rowHeight, at, routes };
 	};
 
 	// A group's rail scales with the group's height, so keep room for it at full size.
@@ -1127,14 +1107,12 @@ export function layoutLandscape(
 
 	// Each group's children, relative to the room inside it ('' for the top level).
 	const blocks = new Map<string, Block>();
-	/** The pitch of the lines among each group's children, where more than `ROUTE.spread`. */
-	const pitches = new Map<string, number>();
 	/**
 	 * Siblings `parent` holds (none for the top level), `g` apart: those lines join laid out
 	 * together, the groups no line joins packed. Every group among them is laid out inside first
 	 * and then stands as one box of its size, at least `opts.minShare` of the largest. Lines
-	 * among them are given room `ROUTE.spread` apart, or as far apart as they are routed in a box
-	 * of the size that makes (see `pitchOf`), laid out again if that is further.
+	 * among them are `LINE_SHARE` of the largest one's shorter side apart, at least
+	 * `ROUTE.spread`, so they read once the boxes they join do.
 	 */
 	const layout = (parent: string | undefined, kids: Item[], g: number): Block => {
 		for (const item of kids) {
@@ -1156,21 +1134,16 @@ export function layoutLandscape(
 		}
 		atLeast(kids);
 		const parts = components(parent, kids);
-		const lay = (pitch: number) =>
-			parts.length === 1
-				? run(kids, g, pitch)
-				: pack(
-						parts.map((c) => run(c, g, pitch)),
-						g
-					);
-		const block = lay(ROUTE.spread);
-		if (!lines.some((l) => l.parentId === parent)) return block;
-		const pitch = parent
-			? pitchOf(block.width + 2 * PAD + (inner.get(parent) ?? 0), block.height + HEADER + PAD)
-			: pitchOf(block.width, block.height, true);
-		if (pitch <= ROUTE.spread) return block;
-		pitches.set(parent ?? '', pitch);
-		return lay(pitch);
+		const largest = Math.max(
+			...kids.map((k) => Math.min(sizes.get(k.id)!.width, sizes.get(k.id)!.height))
+		);
+		const pitch = Math.max(ROUTE.spread, Math.round(LINE_SHARE * largest));
+		return parts.length === 1
+			? run(kids, g, pitch)
+			: pack(
+					parts.map((c) => run(c, g, pitch)),
+					g
+				);
 	};
 	/**
 	 * Siblings `top`, `g` apart and further by what each keeps clear beyond `buffer` (see
@@ -1178,10 +1151,22 @@ export function layoutLandscape(
 	 */
 	const run = (top: Item[], g: number, pitch: number): Block => {
 		const block = placed(top, g, pitch);
+		const mid = new Map<string, Point>();
 		for (const item of top) {
 			const at = block.at.get(item.id)!;
+			const size = sizes.get(item.id)!;
 			const m = extra(item.id);
+			mid.set(item.id, {
+				x: at.x + m + (size.width + (size.right ?? 0)) / 2,
+				y: at.y + m + size.height / 2
+			});
 			block.at.set(item.id, { x: at.x + m, y: at.y + m });
+		}
+		// ELK's routes end on the grown boxes: on to the boxes themselves.
+		for (const [id, pts] of block.routes) {
+			const { source, target } = ties.get(id)!;
+			inward(pts[0], pts[1], extra(source), mid.get(source)!);
+			inward(pts.at(-1)!, pts.at(-2)!, extra(target), mid.get(target)!);
 		}
 		return block;
 	};
@@ -1197,8 +1182,7 @@ export function layoutLandscape(
 				height: size.height + 2 * m
 			};
 		});
-		const among = lines.filter((l) => ids.has(l.source));
-		if (opts.method === 'stress' && among.length) return stress(children, among, g);
+		const among = tied.filter((l) => ids.has(l.source));
 		const graph = elkLayout({
 			id: 'root',
 			layoutOptions: {
@@ -1206,7 +1190,6 @@ export function layoutLandscape(
 				'elk.algorithm': 'layered',
 				'elk.direction': opts.direction,
 				'elk.padding': '[top=0,left=0,bottom=0,right=0]',
-				// The canvas routes its own lines, but ELK routing them the same way keeps room for them.
 				'elk.edgeRouting': 'ORTHOGONAL',
 				'elk.layered.nodePlacement.strategy': opts.placement,
 				// Pulls boxes in along the flow where the lines allow, to shorten them.
@@ -1218,63 +1201,40 @@ export function layoutLandscape(
 				sources: [l.target],
 				targets: [l.source],
 				layoutOptions: {
-					'elk.layered.priority.shortness': String(l.edges.length),
-					'elk.layered.priority.straightness': String(l.edges.length)
+					'elk.layered.priority.shortness': String(l.weight),
+					'elk.layered.priority.straightness': String(l.weight)
 				}
 			}))
 		});
-		return blockOf(graph.children!);
-	};
-	/**
-	 * Siblings placed by stress, `g` apart: each line pulls its two boxes to a distance, the
-	 * shorter the more connections it merges. Then overlapping boxes are pushed apart, and the
-	 * slack taken out again.
-	 */
-	const stress = (children: ElkNode[], among: LaidLine[], g: number): Block => {
-		const reach = new Map(children.map((c) => [c.id, Math.hypot(c.width!, c.height!) / 2]));
-		const spaced = {
-			'elk.padding': '[top=0,left=0,bottom=0,right=0]',
-			'elk.spacing.nodeNode': String(g)
-		};
-		const at = (n: ElkNode) =>
-			n.children!.map(({ id, x, y, width, height }) => ({
-				id,
-				x: x!,
-				y: y!,
-				width: width!,
-				height: height!
-			}));
-		const pulled = elkLayout({
-			id: 'root',
-			layoutOptions: { ...spaced, 'elk.algorithm': 'stress' },
-			children,
-			edges: among.map((l) => ({
-				id: l.id,
-				sources: [l.target],
-				targets: [l.source],
-				layoutOptions: {
-					'elk.stress.desiredEdgeLength': String(
-						reach.get(l.source)! + reach.get(l.target)! + g / Math.sqrt(l.edges.length)
-					)
-				}
-			}))
-		});
-		return blockOf(compact(spread(at(pulled), g), g));
+		return blockOf(graph);
 	};
 	/** Where boxes went, relative to the block they make. */
-	const blockOf = (kids: ElkNode[]): Block => {
+	/**
+	 * Where boxes went, and the Module Dependency Lines' routes, relative to the block they make.
+	 * ELK runs each line from what is depended on, so its route is turned round.
+	 */
+	const blockOf = (graph: ElkNode): Block => {
+		const kids = graph.children!;
 		const x0 = Math.min(...kids.map((c) => c.x!));
 		const y0 = Math.min(...kids.map((c) => c.y!));
+		const routes = new Map<string, Point[]>();
+		for (const e of graph.edges ?? []) {
+			const s = e.sections?.[0];
+			if (!s || !drawnIds.has(e.id)) continue;
+			const pts = [s.startPoint, ...(s.bendPoints ?? []), s.endPoint];
+			routes.set(e.id, pts.map((p) => ({ x: p.x - x0, y: p.y - y0 })).reverse());
+		}
 		return {
 			width: Math.max(...kids.map((c) => c.x! + c.width!)) - x0,
 			height: Math.max(...kids.map((c) => c.y! + c.height!)) - y0,
-			at: new Map(kids.map((c) => [c.id, { x: c.x! - x0, y: c.y! - y0 }]))
+			at: new Map(kids.map((c) => [c.id, { x: c.x! - x0, y: c.y! - y0 }])),
+			routes
 		};
 	};
 	blocks.set('', layout(undefined, roots, systemGap));
 
 	place(roots, { x: 0, y: 0, ...blocks.get('')! });
-	return { boxes: out, lines, pitch: pitches.get('') };
+	return { boxes: out, lines, routes };
 }
 
 const modelOf = (model: Model, id: string) => model.fields.get(id)?.modelId ?? id;

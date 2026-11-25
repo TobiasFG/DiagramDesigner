@@ -120,41 +120,29 @@ describe('layout options', () => {
 		});
 		return loadStrings(fs).model;
 	})();
-	/** Total gap between the boxes each line joins, edge to edge. */
-	const gaps = (method: 'layered' | 'stress') => {
-		const { boxes, lines } = layoutLandscape(ring, { ...DEFAULT_LAYOUT, method });
+	it('routes the Module Dependency Lines with the layout, border to border, square', () => {
+		const { boxes, routes } = layoutLandscape(ring);
 		const box = (id: string) => boxes.find((b) => b.id === id)!;
-		return lines.reduce((sum, l) => {
-			const [a, b] = [box(l.source), box(l.target)];
-			const dx = Math.max(
-				0,
-				Math.max(a.absX, b.absX) - Math.min(a.absX + a.width, b.absX + b.width)
+		const drawn = moduleLines(ring, edgesOf(ring), (id) => boxes.some((b) => b.id === id));
+		expect(drawn.length).toBeGreaterThan(5);
+		/** Whether `p` lies on `b`'s border. */
+		const onBorder = (p: { x: number; y: number }, id: string) => {
+			const b = box(id);
+			const [x1, y1] = [b.absX + b.width, b.absY + b.height];
+			const near = (a: number, c: number) => Math.abs(a - c) < 0.5;
+			return (
+				((near(p.x, b.absX) || near(p.x, x1)) && p.y >= b.absY && p.y <= y1) ||
+				((near(p.y, b.absY) || near(p.y, y1)) && p.x >= b.absX && p.x <= x1)
 			);
-			const dy = Math.max(
-				0,
-				Math.max(a.absY, b.absY) - Math.min(a.absY + a.height, b.absY + b.height)
-			);
-			return sum + dx + dy;
-		}, 0);
-	};
-
-	it('places by stress without overlaps, children inside their parents, the same every time', () => {
-		const { boxes } = layoutLandscape(ring, { ...DEFAULT_LAYOUT, method: 'stress' });
-		for (const a of boxes) {
-			const parent = boxes.find((b) => b.id === a.parentId);
-			if (parent) expect(inside(a, parent), a.id).toBe(true);
-			for (const b of boxes)
-				if (a !== b && a.parentId === b.parentId)
-					expect(overlap(a, b), `${a.id} ${b.id}`).toBe(false);
+		};
+		for (const l of drawn) {
+			const pts = routes.get(l.id)!;
+			expect(pts, l.id).toBeDefined();
+			expect(onBorder(pts[0], l.source), l.id).toBe(true);
+			expect(onBorder(pts.at(-1)!, l.target), l.id).toBe(true);
+			for (let i = 1; i < pts.length; i++)
+				expect(pts[i].x === pts[i - 1].x || pts[i].y === pts[i - 1].y, l.id).toBe(true);
 		}
-		const again = layoutLandscape(ring, { ...DEFAULT_LAYOUT, method: 'stress' }).boxes;
-		expect(again.map((b) => [b.id, b.absX, b.absY])).toEqual(
-			boxes.map((b) => [b.id, b.absX, b.absY])
-		);
-	});
-
-	it('keeps boxes in a cycle closer by stress than in layers', () => {
-		expect(gaps('stress')).toBeLessThan(gaps('layered'));
 	});
 
 	it('packs boxes no line ties together to the shape asked', () => {

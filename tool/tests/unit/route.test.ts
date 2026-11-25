@@ -4,7 +4,6 @@ import {
 	clearanceOf,
 	loadRouter,
 	ROUTE,
-	routeGroups,
 	routeKey,
 	routeLines,
 	type Point,
@@ -89,15 +88,6 @@ describe('routeLines', () => {
 		const [x, y] = [r.get('x')!, r.get('y')!];
 		expect(Math.abs(x[0].y - y.at(-1)!.y)).toBeGreaterThanOrEqual(ROUTE.spread);
 		expect(Math.abs(x.at(-1)!.y - y[0].y)).toBeGreaterThanOrEqual(ROUTE.spread);
-	});
-
-	it('runs lines leaving one end as one there when asked', () => {
-		const lines = [
-			{ id: 'x', s: end('a'), t: end('b') },
-			{ id: 'y', s: end('a'), t: end('b') }
-		];
-		const gapAt = (r: Map<string, Point[]>) => Math.abs(r.get('x')![1].y - r.get('y')![1].y);
-		expect(gapAt(routeLines(boxes, lines, true))).toBe(0);
 	});
 
 	it('ends a line on a bare point even where a free end has no room', () => {
@@ -234,49 +224,6 @@ describe('frames', () => {
 	});
 });
 
-describe('routeGroups', () => {
-	const at = (on: string, r: Rect) => ({
-		on,
-		x0: r.x0,
-		x1: r.x1,
-		y: (r.y0 + r.y1) / 2,
-		sides: ['l', 'r'] as const
-	});
-	// Two boxes side by side; a box of another group lies across the way between them.
-	const a = rect(0, 0, 100, 60);
-	const b = rect(300, 0, 100, 60);
-	const across = rect(150, -20, 100, 120);
-	const c = rect(0, 400, 100, 60);
-	const d = rect(300, 400, 100, 60);
-
-	it('routes each group among its own boxes only, as routeLines would', () => {
-		const groups = [
-			{
-				boxes: new Map([
-					['a', a],
-					['b', b]
-				]),
-				lines: [{ id: 'ab', s: at('a', a), t: at('b', b) }]
-			},
-			{
-				boxes: new Map([
-					['across', across],
-					['c', c],
-					['d', d]
-				]),
-				lines: [{ id: 'cd', s: at('c', c), t: at('d', d) }]
-			}
-		];
-		const routes = routeGroups(groups, true);
-		// The box across the way belongs to the other group, so ab runs straight through it.
-		expect(routes.get('ab')).toEqual([
-			{ x: 100, y: 30 },
-			{ x: 300, y: 30 }
-		]);
-		expect(routes.get('cd')).toEqual(routeLines(groups[1].boxes, groups[1].lines, true).get('cd'));
-	});
-});
-
 describe('boxesNear', () => {
 	const at = (x0: number, x1: number, y: number, on?: string) => ({
 		on,
@@ -335,10 +282,9 @@ describe('routeKey', () => {
 	const end = (on: string, y: number) => ({ on, x0: 0, x1: 100, y, sides: ['l', 'r'] as const });
 	const lines = [{ id: 'x', s: end('a', 30), t: end('b', 30) }];
 
-	it('is the same for the same lines, and differs as an end moves or ends are shared', () => {
+	it('is the same for the same lines, and differs as an end moves', () => {
 		expect(routeKey(structuredClone(lines))).toBe(routeKey(lines));
 		expect(routeKey([{ ...lines[0], t: end('b', 43) }])).not.toBe(routeKey(lines));
-		expect(routeKey(lines, true)).not.toBe(routeKey(lines));
 	});
 
 	it('is empty for no lines', () => {
